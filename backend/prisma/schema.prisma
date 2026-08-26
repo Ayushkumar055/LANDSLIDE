@@ -1,0 +1,54 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Hotspot {
+  id            Int      @id @default(autoincrement())
+  name          String
+  state         String
+  lat           Float
+  lng           Float
+  baseRainfall  Float
+  slope         Float
+  soilStability String
+  elevation     Float
+  createdAt     DateTime @default(now())
+}
+
+model AlertLog {
+  id           Int      @id @default(autoincrement())
+  location     String
+  level        String
+  score        Int
+  rainfall     Float
+  dispatchedTo String[]
+  createdAt    DateTime @default(now())
+}
+
+model Shelter {
+  id        Int      @id @default(autoincrement())
+  name      String
+  state     String
+  type      String
+  lat       Float
+  lng       Float
+  capacity  Int
+  contact   String?
+  createdAt DateTime @default(now())
+}
+
+model SosReport {
+  id               Int      @id @default(autoincrement())
+  reporterName     String?
+  location         String
+  lat              Float
+  lng              Float
+  issueType        String
+  description      String
+  status           String   @default("PENDING")
+  createdAt        DateTime @default(now())
+}
