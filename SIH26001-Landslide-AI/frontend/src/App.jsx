@@ -412,6 +412,9 @@ export default function App() {
           <button className={`nav-item ${currentTab === "history" ? "active" : ""}`} onClick={() => setCurrentTab("history")}>
             <span>◫</span> Historical Data
           </button>
+          <button className={`nav-item ${currentTab === "mobileapp" ? "active" : ""}`} onClick={() => setCurrentTab("mobileapp")}>
+            <span>📱</span> Get Mobile App
+          </button>
         </nav>
 
         <div className="sidebar-bottom">
@@ -917,6 +920,42 @@ export default function App() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* VIEW 6: GET MOBILE APP */}
+        {currentTab === "mobileapp" && (
+          <div className="panel" style={{ padding: "32px", textAlign: "center" }}>
+            <div style={{ maxWidth: "480px", margin: "0 auto" }}>
+              <div style={{ fontSize: "40px", marginBottom: "8px" }}>📱</div>
+              <h3 style={{ fontSize: "20px", marginBottom: "6px" }}>Get LandslideAI on Your Phone</h3>
+              <p style={{ color: "#7f91a8", fontSize: "13px", marginBottom: "28px" }}>
+                Scan the QR code below with your phone's camera to open LandslideAI and install it as an app — get instant access to live risk maps, evacuation routes, and the SOS button from your home screen.
+              </p>
+
+              <div style={{ display: "inline-block", padding: "16px", background: "#fff", borderRadius: "14px", marginBottom: "20px" }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent("https://landslideriskmonitoring.netlify.app/")}`}
+                  alt="Scan to download LandslideAI app"
+                  width={240}
+                  height={240}
+                  style={{ display: "block" }}
+                />
+              </div>
+
+              <p style={{ color: "#42d5ac", fontSize: "12px", fontWeight: "bold", marginBottom: "24px" }}>
+                landslideriskmonitoring.netlify.app
+              </p>
+
+              <div style={{ textAlign: "left", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "18px 20px" }}>
+                <strong style={{ fontSize: "12px", color: "#38bdf8", letterSpacing: "0.5px" }}>HOW TO INSTALL</strong>
+                <div style={{ marginTop: "12px", fontSize: "12px", color: "#c7d0d8", lineHeight: "1.7" }}>
+                  <strong style={{ color: "#e2e8f0" }}>Android (Chrome):</strong> After the page opens, tap the ⋮ menu → "Add to Home screen" / "Install app".
+                  <br /><br />
+                  <strong style={{ color: "#e2e8f0" }}>iPhone (Safari):</strong> After the page opens, tap the Share icon → "Add to Home Screen".
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
