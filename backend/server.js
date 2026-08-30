@@ -187,6 +187,18 @@ app.post('/api/sos', async (req, res) => {
   }
 });
 
+app.patch('/api/sos/:id/resolve', async (req, res) => {
+  try {
+    const updated = await prisma.sosReport.update({
+      where: { id: parseInt(req.params.id, 10) },
+      data: { status: 'RESOLVED' }
+    });
+    res.json({ success: true, report: updated });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Fetch Alerts Log
 app.get('/api/alerts', async (req, res) => {
   try {

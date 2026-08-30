@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://landslide-backend1.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 export const fetchHotspots = async () => {
   try {
@@ -96,5 +96,15 @@ export const fetchSosReports = async () => {
   } catch (err) {
     console.error('Failed to fetch SOS reports:', err);
     return [];
+  }
+};
+
+export const resolveSosReport = async (id) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/sos/${id}/resolve`, { method: 'PATCH' });
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to resolve SOS report:', err);
+    return null;
   }
 };

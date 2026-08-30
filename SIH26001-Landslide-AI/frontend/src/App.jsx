@@ -18,6 +18,7 @@ import {
   fetchLiveWeather,
   submitSosReport,
   fetchSosReports,
+  resolveSosReport,
 } from "./api";
 import { exportAlertsToCSV, printIncidentReport } from "./exportUtils";
 import { playEmergencySiren, speakEmergencyAdvisory } from "./audioUtils";
@@ -88,6 +89,19 @@ function getDistanceKm(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
+// Generates a realistic-looking virtual sensor network for a hotspot
+function generateSensors(location) {
+  const tiltBase = (location.slope / 60) * 1.8;
+  const poreBase = 20 + (location.rainfall / 200) * 60;
+  const moistureBase = 30 + (location.rainfall / 200) * 55;
+
+  return [
+    { id: "TLT", type: "Tiltmeter", unit: "°/hr", value: Math.round(tiltBase * 100) / 100, threshold: 1.2, status: "ONLINE" },
+    { id: "PWP", type: "Pore-Water Pressure", unit: "kPa", value: Math.round(poreBase), threshold: 65, status: "ONLINE" },
+    { id: "SM", type: "Soil Moisture", unit: "%", value: Math.round(moistureBase), threshold: 70, status: "ONLINE" },
+  ];
+}
+
 function getRiskMessage(level) {
   if (level === "CRITICAL") return "Immediate attention recommended. Multiple risk factors are elevated.";
   if (level === "HIGH") return "Elevated landslide probability detected. Close monitoring recommended.";
@@ -108,6 +122,12 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [locationsList, setLocationsList] = useState(defaultLocations.map(calculateRisk));
   const [selected, setSelected] = useState(defaultLocations.map(calculateRisk)[0]);
+
+  // IoT Sensor Simulation Network
+  const [sensorNetwork, setSensorNetwork] = useState(() =>
+    defaultLocations.map((loc) => ({ name: loc.name, state: loc.state, sensors: generateSensors(loc) }))
+  );
+  const [lastSensorSync, setLastSensorSync] = useState(new Date());
   const [mapMode, setMapMode] = useState("risk");
   const [alerts, setAlerts] = useState([]);
   const [warningIssued, setWarningIssued] = useState(false);
@@ -127,13 +147,39 @@ export default function App() {
   const [sosSubmitting, setSosSubmitting] = useState(false);
   const [sosSubmitted, setSosSubmitted] = useState(false);
   const [sosForm, setSosForm] = useState({ reporterName: "", issueType: "Road Crack", description: "" });
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
 
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // PWA: Install prompt + Push/Local Notifications
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [notifPermission, setNotifPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
+
+  // Role-Based Access State (Citizen / District Officer / NDRF)
+  const [userRole, setUserRole] = useState(() => {
+    try {
+      return localStorage.getItem("landslideai_role") || null;
+    } catch {
+      return null;
+    }
+  });
+  const [showRoleGate, setShowRoleGate] = useState(() => {
+    try {
+      return !localStorage.getItem("landslideai_role");
+    } catch {
+      return true;
+    }
+  });
+  const [pendingLoginRole, setPendingLoginRole] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [adminUser, setAdminUser] = useState({ name: "Officer In-Charge", role: "NDRF / SDMA Desk" });
+  const [adminUser, setAdminUser] = useState({ name: "Guest User", role: "Citizen (Read + Report Access)" });
   const [loginForm, setLoginForm] = useState({ officerId: "", password: "" });
   const [loginError, setLoginError] = useState("");
+  const isAuthenticated = userRole === "district_officer" || userRole === "ndrf";
+  const canManage = isAuthenticated; // officers & NDRF can issue warnings / resolve SOS reports
 
   // Simulation States
   const [simulationRunning, setSimulationRunning] = useState(false);
@@ -183,6 +229,136 @@ export default function App() {
     };
     initApp();
   }, []);
+
+  useEffect(() => {
+    if (userRole === "district_officer") {
+      setAdminUser({ name: "Officer (Session)", role: "District Disaster Management Officer" });
+    } else if (userRole === "ndrf") {
+      setAdminUser({ name: "NDRF Unit (Session)", role: "NDRF Response Unit" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Live sensor network jitter — only runs while the Sensor Network tab is open
+  useEffect(() => {
+    if (currentTab !== "sensors") return;
+
+    const interval = setInterval(() => {
+      setSensorNetwork((current) =>
+        current.map((station) => ({
+          ...station,
+          sensors: station.sensors.map((s) => {
+            const jitter = (Math.random() - 0.45) * (s.threshold * 0.08);
+            const nextValue = Math.max(0, Math.round((s.value + jitter) * 100) / 100);
+            const dropOffline = Math.random() < 0.03; // occasional simulated connectivity blip
+            return {
+              ...s,
+              value: nextValue,
+              status: dropOffline ? "OFFLINE" : nextValue >= s.threshold ? "ALERT" : "ONLINE",
+            };
+          }),
+        }))
+      );
+      setLastSensorSync(new Date());
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [currentTab]);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setVoiceSupported(!!SpeechRecognition);
+
+    // Register service worker for offline support + notification bridge
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+
+    // Capture the browser's native "install this app" prompt so we can trigger it ourselves
+    const handleInstallPrompt = (e) => {
+      e.preventDefault();
+      setInstallPromptEvent(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleInstallPrompt);
+
+    const handleInstalled = () => setIsInstalled(true);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
+
+  async function handleInstallApp() {
+    if (!installPromptEvent) return;
+    installPromptEvent.prompt();
+    await installPromptEvent.userChoice;
+    setInstallPromptEvent(null);
+  }
+
+  async function requestNotificationPermission() {
+    if (typeof Notification === "undefined") return;
+    const result = await Notification.requestPermission();
+    setNotifPermission(result);
+    if (result === "granted") {
+      sendLocalNotification("🔔 Notifications Enabled", "You'll now be alerted here when a monitored zone turns Critical or High.");
+    }
+  }
+
+  async function sendLocalNotification(title, body, tag) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready.catch(() => null);
+      if (registration) {
+        registration.active?.postMessage({ type: "SHOW_NOTIFICATION", payload: { title, body, tag } });
+        return;
+      }
+    }
+    new Notification(title, { body, icon: "/icon.svg" });
+  }
+
+  function startVoiceReport() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceError("Voice input isn't supported in this browser. Try Chrome on Android/desktop.");
+      return;
+    }
+
+    setVoiceError("");
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      setVoiceError(event.error === "not-allowed" ? "Microphone access denied. Please allow mic permission." : "Couldn't hear that clearly. Please try again.");
+    };
+    recognition.onend = () => setIsListening(false);
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setSosForm((prev) => ({
+        ...prev,
+        description: prev.description ? `${prev.description} ${transcript}` : transcript,
+      }));
+    };
+
+    recognition.start();
+  }
+
+  useEffect(() => {
+    if (!canManage && ["monitoring", "analytics", "history", "sensors"].includes(currentTab)) {
+      setCurrentTab("dashboard");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage]);
 
   // Reset live weather reading whenever the selected monitoring location changes
   useEffect(() => {
@@ -349,6 +525,12 @@ export default function App() {
       setAlerts((current) => [response.alert, ...current]);
     }
 
+    sendLocalNotification(
+      `🚨 ${liveRiskLevel} Alert — ${selected.name}`,
+      `Risk score ${liveRiskScore}/100. Evacuation advisory dispatched to NDRF/SDMA.`,
+      `alert-${selected.name}`
+    );
+
     setWarningIssued(true);
     setTimeout(() => setWarningIssued(false), 2500);
   }
@@ -360,20 +542,50 @@ export default function App() {
       setLoginError("Please enter Officer ID and Access Code");
       return;
     }
-    // Demo authentication check
-    setIsAuthenticated(true);
-    setAdminUser({
-      name: loginForm.officerId.toUpperCase(),
-      role: "SDMA Chief Controller"
-    });
+    const role = pendingLoginRole || "district_officer";
+    const roleLabel = role === "ndrf" ? "NDRF Response Unit" : "District Disaster Management Officer";
+
+    setUserRole(role);
+    setAdminUser({ name: loginForm.officerId.toUpperCase(), role: roleLabel });
+    try {
+      localStorage.setItem("landslideai_role", role);
+    } catch {}
     setShowAuthModal(false);
+    setShowRoleGate(false);
     setLoginForm({ officerId: "", password: "" });
     setLoginError("");
+    setPendingLoginRole(null);
   }
 
   function handleLogout() {
-    setIsAuthenticated(false);
-    setAdminUser({ name: "Guest User", role: "Monitoring View" });
+    setUserRole(null);
+    setAdminUser({ name: "Guest User", role: "Citizen (Read + Report Access)" });
+    try {
+      localStorage.removeItem("landslideai_role");
+    } catch {}
+    setShowRoleGate(true);
+  }
+
+  function continueAsCitizen() {
+    setUserRole("citizen");
+    setAdminUser({ name: "Guest Citizen", role: "Citizen (Read + Report Access)" });
+    try {
+      localStorage.setItem("landslideai_role", "citizen");
+    } catch {}
+    setShowRoleGate(false);
+  }
+
+  function startAuthorityLogin(role) {
+    setPendingLoginRole(role);
+    setShowAuthModal(true);
+    setShowRoleGate(false);
+  }
+
+  async function handleResolveSos(id) {
+    const response = await resolveSosReport(id);
+    if (response && response.success) {
+      setSosReports((current) => current.map((r) => (r.id === id ? { ...r, status: "RESOLVED" } : r)));
+    }
   }
 
   return (
@@ -384,8 +596,20 @@ export default function App() {
           <div className="brand-icon">⛰</div>
           <div>
             <h1>Landslide<span>AI</span></h1>
-            <p>EARLY WARNING SYSTEM</p>
+            <p>{canManage ? "COMMAND CENTER" : "PUBLIC MONITORING VIEW"}</p>
           </div>
+        </div>
+
+        <div
+          style={{
+            margin: "0 2px 20px", padding: "10px 12px", borderRadius: "8px",
+            border: `1px solid ${canManage ? "rgba(34,197,94,.3)" : "rgba(56,189,248,.3)"}`,
+            background: canManage ? "rgba(34,197,94,.06)" : "rgba(56,189,248,.05)",
+            fontSize: "10px", fontWeight: 800, letterSpacing: "0.6px",
+            color: canManage ? "#22c55e" : "#38bdf8", textAlign: "center"
+          }}
+        >
+          {canManage ? "🛡️ AUTHORITY ACCESS — FULL CONTROL" : "👤 CITIZEN ACCESS — VIEW & REPORT"}
         </div>
 
         <div className="system-status">
@@ -400,18 +624,29 @@ export default function App() {
           <button className={`nav-item ${currentTab === "dashboard" ? "active" : ""}`} onClick={() => setCurrentTab("dashboard")}>
             <span>▦</span> Dashboard
           </button>
-          <button className={`nav-item ${currentTab === "monitoring" ? "active" : ""}`} onClick={() => setCurrentTab("monitoring")}>
-            <span>◉</span> Risk Monitoring
-          </button>
+          {canManage && (
+            <button className={`nav-item ${currentTab === "monitoring" ? "active" : ""}`} onClick={() => setCurrentTab("monitoring")}>
+              <span>◉</span> Risk Monitoring
+            </button>
+          )}
+          {canManage && (
+            <button className={`nav-item ${currentTab === "sensors" ? "active" : ""}`} onClick={() => setCurrentTab("sensors")}>
+              <span>📡</span> Sensor Network
+            </button>
+          )}
           <button className={`nav-item ${currentTab === "warnings" ? "active" : ""}`} onClick={() => setCurrentTab("warnings")}>
-            <span>⚠</span> Early Warnings <b>{alerts.length}</b>
+            <span>⚠</span> {canManage ? "Early Warnings" : "Alerts & Ground Reports"} <b>{alerts.length}</b>
           </button>
-          <button className={`nav-item ${currentTab === "analytics" ? "active" : ""}`} onClick={() => setCurrentTab("analytics")}>
-            <span>⌁</span> Analytics
-          </button>
-          <button className={`nav-item ${currentTab === "history" ? "active" : ""}`} onClick={() => setCurrentTab("history")}>
-            <span>◫</span> Historical Data
-          </button>
+          {canManage && (
+            <button className={`nav-item ${currentTab === "analytics" ? "active" : ""}`} onClick={() => setCurrentTab("analytics")}>
+              <span>⌁</span> Analytics
+            </button>
+          )}
+          {canManage && (
+            <button className={`nav-item ${currentTab === "history" ? "active" : ""}`} onClick={() => setCurrentTab("history")}>
+              <span>◫</span> Historical Data
+            </button>
+          )}
           <button className={`nav-item ${currentTab === "mobileapp" ? "active" : ""}`} onClick={() => setCurrentTab("mobileapp")}>
             <span>📱</span> Get Mobile App
           </button>
@@ -425,39 +660,34 @@ export default function App() {
             <div className="accuracy"><span>Model confidence</span><strong>Prototype</strong></div>
           </div>
 
-          {/* ================= USER / ADMIN BOX ================= */}
+          {/* ================= USER / ROLE BOX ================= */}
           <div
             className="user-box"
             onClick={() => {
-              if (isAuthenticated) {
-                if (window.confirm("Do you want to log out of Disaster Management Authority?")) {
-                  handleLogout();
-                }
-              } else {
-                setShowAuthModal(true);
+              if (window.confirm("Switch role / log out?")) {
+                handleLogout();
               }
             }}
             style={{
               cursor: "pointer",
-              border: isAuthenticated ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.08)",
-              background: isAuthenticated ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.02)",
+              border: isAuthenticated ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(56,189,248,0.25)",
+              background: isAuthenticated ? "rgba(34,197,94,0.06)" : "rgba(56,189,248,0.05)",
               transition: "all 0.2s ease"
             }}
-            title={isAuthenticated ? "Click to Log Out" : "Click to Login as Authority"}
+            title="Click to switch role / log out"
           >
             <div className="avatar" style={{ background: isAuthenticated ? "#22c55e" : "#38bdf8", color: "#0b111e", fontWeight: "bold" }}>
-              {isAuthenticated ? "✓" : "A"}
+              {isAuthenticated ? "✓" : "C"}
             </div>
             <div>
-              <strong>{isAuthenticated ? adminUser.name : "Admin Login"}</strong>
+              <strong>{adminUser.name}</strong>
               <small style={{ color: isAuthenticated ? "#22c55e" : "#7f91a8" }}>
-                {isAuthenticated ? adminUser.role : "Click to Authenticate"}
+                {adminUser.role}
               </small>
             </div>
-            <span style={{ fontSize: "12px", color: isAuthenticated ? "#ff304f" : "#38bdf8" }}>
-              {isAuthenticated ? "⏻" : "➔"}
-            </span>
+            <span style={{ fontSize: "12px", color: "#38bdf8" }}>⇄</span>
           </div>
+
         </div>
       </aside>
 
@@ -694,9 +924,15 @@ export default function App() {
                   </div>
                 </div>
 
-                <button className="warning-btn" onClick={issueEarlyWarning}>
-                  {warningIssued ? "✓ Warning Issued & Dispatched" : "⚠ Issue Early Warning"}
-                </button>
+                {canManage ? (
+                  <button className="warning-btn" onClick={issueEarlyWarning}>
+                    {warningIssued ? "✓ Warning Issued & Dispatched" : "⚠ Issue Early Warning"}
+                  </button>
+                ) : (
+                  <div style={{ margin: "0 16px 15px", padding: "10px", borderRadius: "6px", border: "1px dashed rgba(255,255,255,0.15)", color: "#7f91a8", fontSize: "10px", textAlign: "center" }}>
+                    🔒 Only District Officers / NDRF can issue official warnings. <button onClick={() => startAuthorityLogin("district_officer")} style={{ color: "#38bdf8", background: "none", border: "none", cursor: "pointer", fontSize: "10px", textDecoration: "underline" }}>Login as Authority</button>
+                  </div>
+                )}
               </div>
             </section>
           </>
@@ -833,15 +1069,28 @@ export default function App() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {sosReports.map((r) => (
-                  <div key={r.id} style={{ padding: "14px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", borderLeft: "5px solid #f59e0b" }}>
+                  <div key={r.id} style={{ padding: "14px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", borderLeft: `5px solid ${r.status === "RESOLVED" ? "#22c55e" : "#f59e0b"}` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <strong style={{ fontSize: "13px" }}>{r.issueType}</strong>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <strong style={{ fontSize: "13px" }}>{r.issueType}</strong>
+                        <span style={{ fontSize: "9px", fontWeight: "bold", padding: "2px 7px", borderRadius: "10px", background: r.status === "RESOLVED" ? "rgba(34,197,94,.15)" : "rgba(245,158,11,.15)", color: r.status === "RESOLVED" ? "#22c55e" : "#f59e0b" }}>
+                          {r.status || "PENDING"}
+                        </span>
+                      </div>
                       <small style={{ color: "#7f91a8" }}>{new Date(r.createdAt).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}</small>
                     </div>
                     <div style={{ color: "#7f91a8", fontSize: "12px", marginTop: "4px" }}>
                       📍 {r.location} • Reported by {r.reporterName}
                     </div>
                     <p style={{ fontSize: "12px", color: "#c7d0d8", margin: "6px 0 0" }}>{r.description}</p>
+                    {canManage && r.status !== "RESOLVED" && (
+                      <button
+                        onClick={() => handleResolveSos(r.id)}
+                        style={{ marginTop: "10px", padding: "6px 12px", borderRadius: "6px", border: "1px solid rgba(34,197,94,.35)", background: "rgba(34,197,94,.1)", color: "#22c55e", fontSize: "10px", fontWeight: "bold", cursor: "pointer" }}
+                      >
+                        ✓ Mark Resolved
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -923,7 +1172,79 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 6: GET MOBILE APP */}
+        {/* VIEW 6: SENSOR NETWORK (Officer/NDRF only) */}
+        {currentTab === "sensors" && canManage && (
+          <div className="panel" style={{ padding: "22px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+              <div>
+                <h3 style={{ fontSize: "16px", color: "#38bdf8" }}>📡 IoT Sensor Network</h3>
+                <p style={{ color: "#7f91a8", fontSize: "13px" }}>Simulated ground-truth telemetry — tiltmeters, pore-water pressure & soil moisture sensors</p>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ fontSize: "10px", color: "#22c55e", fontWeight: 800 }}>● LIVE</span>
+                <div style={{ fontSize: "9px", color: "#5d6873", marginTop: "2px" }}>
+                  Synced {lastSensorSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ margin: "16px 0 20px", padding: "10px 14px", borderRadius: "8px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", fontSize: "11px", color: "#7f91a8" }}>
+              ℹ️ This is a prototype simulation of a physical sensor network. In deployment, these readings would stream from real tiltmeters and pore-pressure transducers installed on each slope.
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+              {sensorNetwork.map((station) => {
+                const hasAlert = station.sensors.some((s) => s.status === "ALERT");
+                const hasOffline = station.sensors.some((s) => s.status === "OFFLINE");
+                return (
+                  <div
+                    key={station.name}
+                    style={{
+                      padding: "16px", borderRadius: "10px",
+                      border: `1px solid ${hasAlert ? "rgba(255,48,79,.4)" : "rgba(255,255,255,0.08)"}`,
+                      background: hasAlert ? "rgba(255,48,79,.05)" : "rgba(255,255,255,0.02)"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                      <div>
+                        <strong style={{ fontSize: "13px" }}>{station.name}</strong>
+                        <div style={{ fontSize: "10px", color: "#7f91a8" }}>{station.state}</div>
+                      </div>
+                      <span style={{
+                        fontSize: "9px", fontWeight: 800, padding: "3px 8px", borderRadius: "10px",
+                        background: hasAlert ? "rgba(255,48,79,.15)" : hasOffline ? "rgba(255,138,0,.15)" : "rgba(34,197,94,.15)",
+                        color: hasAlert ? "#ff304f" : hasOffline ? "#ff8a00" : "#22c55e"
+                      }}>
+                        {hasAlert ? "⚠ THRESHOLD BREACH" : hasOffline ? "⚠ PARTIAL SIGNAL" : "✓ NOMINAL"}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {station.sensors.map((s) => (
+                        <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", borderRadius: "6px", background: "rgba(0,0,0,0.2)" }}>
+                          <div>
+                            <div style={{ fontSize: "11px", fontWeight: 600 }}>{s.type}</div>
+                            <div style={{ fontSize: "9px", color: s.status === "OFFLINE" ? "#ff8a00" : "#5d6873" }}>
+                              {s.status === "OFFLINE" ? "Signal lost" : `Threshold ${s.threshold} ${s.unit}`}
+                            </div>
+                          </div>
+                          <strong style={{
+                            fontSize: "14px",
+                            color: s.status === "ALERT" ? "#ff304f" : s.status === "OFFLINE" ? "#ff8a00" : "#e2e8f0"
+                          }}>
+                            {s.status === "OFFLINE" ? "—" : `${s.value}${s.unit}`}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 7: GET MOBILE APP */}
         {currentTab === "mobileapp" && (
           <div className="panel" style={{ padding: "32px", textAlign: "center" }}>
             <div style={{ maxWidth: "480px", margin: "0 auto" }}>
@@ -943,9 +1264,40 @@ export default function App() {
                 />
               </div>
 
-              <p style={{ color: "#42d5ac", fontSize: "12px", fontWeight: "bold", marginBottom: "24px" }}>
+              <p style={{ color: "#42d5ac", fontSize: "12px", fontWeight: "bold", marginBottom: "20px" }}>
                 landslideriskmonitoring.netlify.app
               </p>
+
+              {isInstalled ? (
+                <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(34,197,94,.1)", border: "1px solid rgba(34,197,94,.35)", color: "#22c55e", fontSize: "12px", fontWeight: "bold", marginBottom: "20px" }}>
+                  ✓ App is already installed on this device
+                </div>
+              ) : installPromptEvent ? (
+                <button
+                  onClick={handleInstallApp}
+                  style={{ width: "100%", padding: "13px", borderRadius: "8px", border: "none", background: "#35d7b0", color: "#0b111e", fontWeight: "bold", fontSize: "13px", cursor: "pointer", marginBottom: "20px" }}
+                >
+                  ⬇ Install LandslideAI App
+                </button>
+              ) : null}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: "8px", background: "rgba(56,189,248,.05)", border: "1px solid rgba(56,189,248,.2)", marginBottom: "24px" }}>
+                <div style={{ textAlign: "left" }}>
+                  <strong style={{ fontSize: "12px", color: "#38bdf8" }}>🔔 Critical Alert Notifications</strong>
+                  <div style={{ fontSize: "10px", color: "#7f91a8", marginTop: "2px" }}>
+                    {notifPermission === "granted" ? "Enabled — you'll be notified in-browser on Critical/High alerts" : notifPermission === "denied" ? "Blocked in browser settings" : "Get notified even when the tab is in the background"}
+                  </div>
+                </div>
+                {notifPermission !== "granted" && notifPermission !== "unsupported" && (
+                  <button
+                    onClick={requestNotificationPermission}
+                    style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid rgba(56,189,248,.4)", background: "rgba(56,189,248,.12)", color: "#38bdf8", fontSize: "10px", fontWeight: "bold", cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    Enable
+                  </button>
+                )}
+                {notifPermission === "granted" && <span style={{ color: "#22c55e", fontSize: "14px" }}>✓</span>}
+              </div>
 
               <div style={{ textAlign: "left", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "18px 20px" }}>
                 <strong style={{ fontSize: "12px", color: "#38bdf8", letterSpacing: "0.5px" }}>HOW TO INSTALL</strong>
@@ -955,9 +1307,14 @@ export default function App() {
                   <strong style={{ color: "#e2e8f0" }}>iPhone (Safari):</strong> After the page opens, tap the Share icon → "Add to Home Screen".
                 </div>
               </div>
+
+              <p style={{ marginTop: "14px", fontSize: "10px", color: "#5d6873" }}>
+                Once installed, the app shell loads even with a weak or no connection — live data (risk scores, weather, shelters) still needs a network connection to refresh.
+              </p>
             </div>
           </div>
         )}
+
 
         <footer>
           <span>LANDSLIDE AI • SIH26001</span>
@@ -1035,15 +1392,40 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: "12px", color: "#7f91a8", display: "block", marginBottom: "4px" }}>Description</label>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                    <label style={{ fontSize: "12px", color: "#7f91a8" }}>Description</label>
+                    {voiceSupported && (
+                      <button
+                        type="button"
+                        onClick={startVoiceReport}
+                        disabled={isListening}
+                        title="Speak your report instead of typing"
+                        style={{
+                          display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", fontWeight: 700,
+                          padding: "4px 9px", borderRadius: "20px", cursor: isListening ? "default" : "pointer",
+                          border: `1px solid ${isListening ? "rgba(255,48,79,.4)" : "rgba(56,189,248,.35)"}`,
+                          background: isListening ? "rgba(255,48,79,.12)" : "rgba(56,189,248,.1)",
+                          color: isListening ? "#ff304f" : "#38bdf8"
+                        }}
+                      >
+                        {isListening ? "🔴 Listening..." : "🎤 Speak Instead"}
+                      </button>
+                    )}
+                  </div>
                   <textarea
-                    placeholder="Describe what you observed..."
+                    placeholder="Describe what you observed, or tap 'Speak Instead' to report by voice..."
                     value={sosForm.description}
                     onChange={(e) => setSosForm({ ...sosForm, description: e.target.value })}
                     rows={3}
                     required
                     style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", background: "#0b111e", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", outline: "none", resize: "vertical", fontFamily: "inherit" }}
                   />
+                  {voiceError && (
+                    <div style={{ marginTop: "6px", fontSize: "10px", color: "#ff8a00" }}>⚠ {voiceError}</div>
+                  )}
+                  {!voiceSupported && (
+                    <div style={{ marginTop: "6px", fontSize: "10px", color: "#5d6873" }}>Voice input works best in Chrome (Android/desktop).</div>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
@@ -1069,6 +1451,44 @@ export default function App() {
       )}
 
       {/* ================= MODAL: ADMIN / AUTHORITY AUTHENTICATION ================= */}
+      {/* ================= ROLE GATE (first load) ================= */}
+      {showRoleGate && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(5,8,12,0.96)", display: "flex",
+          justifyContent: "center", alignItems: "center", zIndex: 10000, backdropFilter: "blur(6px)"
+        }}>
+          <div style={{ width: "460px", maxWidth: "92vw", textAlign: "center" }}>
+            <div style={{ fontSize: "36px", marginBottom: "6px" }}>⛰</div>
+            <h2 style={{ margin: "0 0 4px", fontSize: "20px" }}>Landslide<span style={{ color: "#35d7b0" }}>AI</span></h2>
+            <p style={{ color: "#7f91a8", fontSize: "13px", marginBottom: "26px" }}>Choose how you'd like to access the platform</p>
+
+            <button
+              onClick={continueAsCitizen}
+              style={{ width: "100%", textAlign: "left", padding: "16px 18px", marginBottom: "12px", borderRadius: "10px", border: "1px solid rgba(56,189,248,.3)", background: "rgba(56,189,248,.07)", color: "#e2e8f0", cursor: "pointer" }}
+            >
+              <strong style={{ display: "block", fontSize: "14px", color: "#38bdf8" }}>👤 Continue as Citizen</strong>
+              <small style={{ color: "#7f91a8" }}>View risk map, nearest shelters &amp; submit ground reports</small>
+            </button>
+
+            <button
+              onClick={() => startAuthorityLogin("district_officer")}
+              style={{ width: "100%", textAlign: "left", padding: "16px 18px", marginBottom: "12px", borderRadius: "10px", border: "1px solid rgba(245,158,11,.3)", background: "rgba(245,158,11,.06)", color: "#e2e8f0", cursor: "pointer" }}
+            >
+              <strong style={{ display: "block", fontSize: "14px", color: "#f59e0b" }}>🏛️ District Officer Login</strong>
+              <small style={{ color: "#7f91a8" }}>Issue warnings, manage citizen reports</small>
+            </button>
+
+            <button
+              onClick={() => startAuthorityLogin("ndrf")}
+              style={{ width: "100%", textAlign: "left", padding: "16px 18px", borderRadius: "10px", border: "1px solid rgba(34,197,94,.3)", background: "rgba(34,197,94,.06)", color: "#e2e8f0", cursor: "pointer" }}
+            >
+              <strong style={{ display: "block", fontSize: "14px", color: "#22c55e" }}>🚁 NDRF Response Unit Login</strong>
+              <small style={{ color: "#7f91a8" }}>Full access — dispatch, sensors, evacuation coordination</small>
+            </button>
+          </div>
+        </div>
+      )}
+
       {showAuthModal && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex",
@@ -1083,11 +1503,11 @@ export default function App() {
                 <span style={{ fontSize: "18px" }}>🛡️</span>
                 <h3 style={{ margin: 0, fontSize: "16px", color: "#38bdf8" }}>Authority Authentication</h3>
               </div>
-              <button onClick={() => { setShowAuthModal(false); setLoginError(""); }} style={{ background: "transparent", border: "none", color: "#7f91a8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+              <button onClick={() => { setShowAuthModal(false); setLoginError(""); if (!userRole) setShowRoleGate(true); }} style={{ background: "transparent", border: "none", color: "#7f91a8", fontSize: "18px", cursor: "pointer" }}>✕</button>
             </div>
 
             <p style={{ fontSize: "12px", color: "#7f91a8", marginBottom: "16px" }}>
-              Log in with your official NDRF / State Disaster Management credentials to authorize emergency dispatches.
+              Logging in as <strong style={{ color: "#38bdf8" }}>{pendingLoginRole === "ndrf" ? "NDRF Response Unit" : "District Disaster Management Officer"}</strong>. Use any demo ID/PIN to continue (prototype auth).
             </p>
 
             {loginError && (
@@ -1122,7 +1542,7 @@ export default function App() {
               <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
                 <button
                   type="button"
-                  onClick={() => { setShowAuthModal(false); setLoginError(""); }}
+                  onClick={() => { setShowAuthModal(false); setLoginError(""); if (!userRole) setShowRoleGate(true); }}
                   style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.06)", border: "none", color: "#e2e8f0", cursor: "pointer" }}
                 >
                   Cancel
