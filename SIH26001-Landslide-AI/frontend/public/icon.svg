@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0c1016"/>
+      <stop offset="100%" stop-color="#142b30"/>
+    </linearGradient>
+    <linearGradient id="peak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5be9c9"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="8" y="8" width="496" height="496" rx="104" fill="none" stroke="#245052" stroke-width="6"/>
+
+  <!-- Mountain / landslide silhouette -->
+  <path d="M60 372 L180 190 L232 258 L296 150 L452 372 Z" fill="url(#peak)"/>
+  <path d="M180 190 L232 258 L206 300 L128 300 Z" fill="#0c1016" opacity="0.35"/>
+
+  <!-- Radar / pulse rings above the peak (AI monitoring cue) -->
+  <circle cx="296" cy="150" r="18" fill="#35d7b0"/>
+  <circle cx="296" cy="150" r="34" fill="none" stroke="#35d7b0" stroke-width="6" opacity="0.55"/>
+  <circle cx="296" cy="150" r="52" fill="none" stroke="#35d7b0" stroke-width="4" opacity="0.3"/>
+
+  <!-- Ground line -->
+  <rect x="48" y="372" width="416" height="14" rx="7" fill="#35d7b0"/>
+</svg>
