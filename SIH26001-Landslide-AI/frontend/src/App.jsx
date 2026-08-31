@@ -7,6 +7,7 @@ import {
   Polyline,
   useMap,
 } from "react-leaflet";
+import { useTranslation } from "react-i18next";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 import {
@@ -119,6 +120,7 @@ function MapController({ location }) {
 }
 
 export default function App() {
+  const { t, i18n } = useTranslation();
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [locationsList, setLocationsList] = useState(defaultLocations.map(calculateRisk));
   const [selected, setSelected] = useState(defaultLocations.map(calculateRisk)[0]);
@@ -705,6 +707,28 @@ export default function App() {
             </h2>
           </div>
           <div className="top-actions">
+            {/* Language Selector */}
+            <select
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+              style={{
+                background: "#1a1f2e",
+                color: "white",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: "6px",
+                padding: "6px 10px",
+                fontSize: "12px",
+                cursor: "pointer",
+                outline: "none"
+              }}
+            >
+              <option value="en">English</option>
+              <option value="hi">हिंदी</option>
+              <option value="as">অসমীয়া</option>
+              <option value="bn">বাংলা</option>
+              <option value="mz">Mizo ṭawng</option>
+            </select>
+
             <div className="live"><span></span>LIVE MONITORING</div>
             <button className="icon-btn" onClick={() => setCurrentTab("warnings")}>🔔</button>
             <div className="date"><strong>24 AUG 2026</strong><small>22:32 IST</small></div>
@@ -1314,7 +1338,6 @@ export default function App() {
             </div>
           </div>
         )}
-
 
         <footer>
           <span>LANDSLIDE AI • SIH26001</span>
