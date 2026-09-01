@@ -3,3 +3,14 @@ node_modules
 SIH26001-Landslide-AI/frontend/node_modules
 SIH26001-Landslide-AI/backend/node_modules
 dist
+# Python virtual environment
+backend/.venv/
+
+# Piper TTS generated audio
+backend/*.wav
+
+# Piper voice models
+backend/*.onnx
+
+# Temporary TTS files
+backend/tts-test.json

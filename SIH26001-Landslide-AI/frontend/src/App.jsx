@@ -103,11 +103,11 @@ function generateSensors(location) {
   ];
 }
 
-function getRiskMessage(level) {
-  if (level === "CRITICAL") return "Immediate attention recommended. Multiple risk factors are elevated.";
-  if (level === "HIGH") return "Elevated landslide probability detected. Close monitoring recommended.";
-  if (level === "MODERATE") return "Moderate risk detected. Continue monitoring rainfall and terrain conditions.";
-  return "Current conditions indicate relatively low landslide susceptibility.";
+function getRiskMessage(level, t) {
+  if (level === "CRITICAL") return t("criticalMessage");
+  if (level === "HIGH") return t("highMessage");
+  if (level === "MODERATE") return t("moderateMessage");
+  return t("lowMessage");
 }
 
 function MapController({ location }) {
@@ -519,7 +519,12 @@ export default function App() {
       playEmergencySiren();
     }
     if (typeof speakEmergencyAdvisory === "function") {
-      speakEmergencyAdvisory(selected.name, liveRiskLevel, liveRiskScore);
+  speakEmergencyAdvisory(
+  selected.name,
+  liveRiskLevel,
+  liveRiskScore,
+  i18n.language
+);
     }
 
     const response = await dispatchAlert(alertData);
@@ -528,8 +533,8 @@ export default function App() {
     }
 
     sendLocalNotification(
-      `🚨 ${liveRiskLevel} Alert — ${selected.name}`,
-      `Risk score ${liveRiskScore}/100. Evacuation advisory dispatched to NDRF/SDMA.`,
+      `🚨 ${t("notificationTitle")} — ${selected.name}`,
+      t("notificationMessage", { score: liveRiskScore }),
       `alert-${selected.name}`
     );
 
@@ -724,9 +729,6 @@ export default function App() {
             >
               <option value="en">English</option>
               <option value="hi">हिंदी</option>
-              <option value="as">অসমীয়া</option>
-              <option value="bn">বাংলা</option>
-              <option value="mz">Mizo ṭawng</option>
             </select>
 
             <div className="live"><span></span>LIVE MONITORING</div>
@@ -943,14 +945,14 @@ export default function App() {
                 <div className="warning-box">
                   <div className="warning-icon">⚠</div>
                   <div>
-                    <strong>{liveRiskLevel === "LOW" ? "Routine Monitoring" : "Early Warning Recommended"}</strong>
-                    <p>{getRiskMessage(liveRiskLevel)}</p>
+                    <strong>{liveRiskLevel === "LOW" ? t("routineMonitoring") : t("earlyWarningRecommended")}</strong>
+                    <p>{getRiskMessage(liveRiskLevel, t)}</p>
                   </div>
                 </div>
 
                 {canManage ? (
                   <button className="warning-btn" onClick={issueEarlyWarning}>
-                    {warningIssued ? "✓ Warning Issued & Dispatched" : "⚠ Issue Early Warning"}
+                    {warningIssued ? `✓ ${t("warningIssued")}` : `⚠ ${t("issueEarlyWarning")}`}
                   </button>
                 ) : (
                   <div style={{ margin: "0 16px 15px", padding: "10px", borderRadius: "6px", border: "1px dashed rgba(255,255,255,0.15)", color: "#7f91a8", fontSize: "10px", textAlign: "center" }}>
