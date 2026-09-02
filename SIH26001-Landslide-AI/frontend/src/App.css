@@ -12,8 +12,13 @@
 
 body {
   margin: 0;
-  min-width: 1200px;
   background: #080b10;
+}
+
+@media (min-width: 900px) {
+  body {
+    min-width: 1200px;
+  }
 }
 
 button,
@@ -860,5 +865,164 @@ footer {
   .main {
     margin-left: 220px;
     width: calc(100% - 220px);
+  }
+}
+
+/* ================= HAMBURGER MENU (mobile only) ================= */
+.hamburger-btn {
+  display: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #202a34;
+  background: #10151b;
+  color: #e8edf5;
+  font-size: 18px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+/* ================= MOBILE LAYOUT (phones & small tablets) ================= */
+@media (max-width: 860px) {
+  body {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .hamburger-btn {
+    display: flex;
+  }
+
+  /* Sidebar becomes an off-canvas panel, hidden by default */
+  .sidebar {
+    width: 260px;
+    max-width: 80vw;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 2000;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1999;
+  }
+
+  .main {
+    margin-left: 0;
+    width: 100%;
+    padding: 0 14px 24px;
+  }
+
+  .topbar {
+    height: auto;
+    padding: 14px 0;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .topbar h2 {
+    font-size: 16px;
+  }
+
+  .top-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .date {
+    display: none;
+  }
+
+  .live span:not(:first-child) {
+    display: none;
+  }
+
+  /* Stat cards: 2 per row instead of 4 */
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-card strong {
+    font-size: 17px;
+  }
+
+  /* Dashboard & bottom grids stack vertically */
+  .dashboard-grid,
+  .bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .map-panel,
+  .risk-panel,
+  .locations-panel,
+  .alerts-panel {
+    min-height: unset;
+  }
+
+  .map-wrapper {
+    height: 300px;
+  }
+
+  .map {
+    filter: none; /* keep the map crisp on small screens */
+  }
+
+  /* Location rows: drop the least essential column on narrow screens */
+  .location-row {
+    grid-template-columns: 9px 1fr 50px 12px;
+  }
+
+  .location-row > span:nth-child(4) {
+    display: none;
+  }
+
+  .search {
+    width: 110px;
+  }
+
+  footer {
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .score-ring {
+    width: 88px;
+    height: 88px;
+  }
+
+  .score-ring::after {
+    width: 70px;
+    height: 70px;
+  }
+
+  .risk-score {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 }

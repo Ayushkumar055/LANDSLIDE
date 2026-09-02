@@ -122,6 +122,14 @@ function MapController({ location }) {
 export default function App() {
   const { t, i18n } = useTranslation();
   const [currentTab, setCurrentTab] = useState("dashboard");
+
+  // Mobile: off-canvas sidebar toggle
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  function handleNavClick(tab) {
+    setCurrentTab(tab);
+    setMobileSidebarOpen(false);
+  }
   const [locationsList, setLocationsList] = useState(defaultLocations.map(calculateRisk));
   const [selected, setSelected] = useState(defaultLocations.map(calculateRisk)[0]);
 
@@ -597,8 +605,16 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* Mobile backdrop overlay — closes sidebar when tapped outside */}
+      {mobileSidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* SIDEBAR */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileSidebarOpen ? "sidebar-open" : ""}`}>
         <div className="brand">
           <div className="brand-icon">⛰</div>
           <div>
@@ -628,33 +644,33 @@ export default function App() {
         </div>
 
         <nav>
-          <button className={`nav-item ${currentTab === "dashboard" ? "active" : ""}`} onClick={() => setCurrentTab("dashboard")}>
+          <button className={`nav-item ${currentTab === "dashboard" ? "active" : ""}`} onClick={() => handleNavClick("dashboard")}>
             <span>▦</span> Dashboard
           </button>
           {canManage && (
-            <button className={`nav-item ${currentTab === "monitoring" ? "active" : ""}`} onClick={() => setCurrentTab("monitoring")}>
+            <button className={`nav-item ${currentTab === "monitoring" ? "active" : ""}`} onClick={() => handleNavClick("monitoring")}>
               <span>◉</span> Risk Monitoring
             </button>
           )}
           {canManage && (
-            <button className={`nav-item ${currentTab === "sensors" ? "active" : ""}`} onClick={() => setCurrentTab("sensors")}>
+            <button className={`nav-item ${currentTab === "sensors" ? "active" : ""}`} onClick={() => handleNavClick("sensors")}>
               <span>📡</span> Sensor Network
             </button>
           )}
-          <button className={`nav-item ${currentTab === "warnings" ? "active" : ""}`} onClick={() => setCurrentTab("warnings")}>
+          <button className={`nav-item ${currentTab === "warnings" ? "active" : ""}`} onClick={() => handleNavClick("warnings")}>
             <span>⚠</span> {canManage ? "Early Warnings" : "Alerts & Ground Reports"} <b>{alerts.length}</b>
           </button>
           {canManage && (
-            <button className={`nav-item ${currentTab === "analytics" ? "active" : ""}`} onClick={() => setCurrentTab("analytics")}>
+            <button className={`nav-item ${currentTab === "analytics" ? "active" : ""}`} onClick={() => handleNavClick("analytics")}>
               <span>⌁</span> Analytics
             </button>
           )}
           {canManage && (
-            <button className={`nav-item ${currentTab === "history" ? "active" : ""}`} onClick={() => setCurrentTab("history")}>
+            <button className={`nav-item ${currentTab === "history" ? "active" : ""}`} onClick={() => handleNavClick("history")}>
               <span>◫</span> Historical Data
             </button>
           )}
-          <button className={`nav-item ${currentTab === "mobileapp" ? "active" : ""}`} onClick={() => setCurrentTab("mobileapp")}>
+          <button className={`nav-item ${currentTab === "mobileapp" ? "active" : ""}`} onClick={() => handleNavClick("mobileapp")}>
             <span>📱</span> Get Mobile App
           </button>
         </nav>
@@ -701,15 +717,24 @@ export default function App() {
       {/* MAIN CONTAINER */}
       <main className="main">
         <header className="topbar">
-          <div>
-            <p className="eyebrow">NORTH EASTERN REGION • INDIA</p>
-            <h2>
-              {currentTab === "dashboard" && "Landslide Risk Monitoring"}
-              {currentTab === "monitoring" && "Geospatial Risk Monitoring Network"}
-              {currentTab === "warnings" && "Early Warning & Disaster Broadcast Log"}
-              {currentTab === "analytics" && "Susceptibility & Telemetry Analytics"}
-              {currentTab === "history" && "Geological Landslide Event Archive"}
-            </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              className="hamburger-btn"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              ☰
+            </button>
+            <div>
+              <p className="eyebrow">NORTH EASTERN REGION • INDIA</p>
+              <h2>
+                {currentTab === "dashboard" && "Landslide Risk Monitoring"}
+                {currentTab === "monitoring" && "Geospatial Risk Monitoring Network"}
+                {currentTab === "warnings" && "Early Warning & Disaster Broadcast Log"}
+                {currentTab === "analytics" && "Susceptibility & Telemetry Analytics"}
+                {currentTab === "history" && "Geological Landslide Event Archive"}
+              </h2>
+            </div>
           </div>
           <div className="top-actions">
             {/* Language Selector */}
