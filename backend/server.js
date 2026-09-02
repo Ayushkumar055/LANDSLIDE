@@ -231,6 +231,155 @@ app.get("/api/shelters", async (req, res) => {
 });
 
 // ==========================================
+// ROAD CONNECTIVITY MONITORING
+// ==========================================
+
+// GET all roads
+app.get("/api/roads", async (req, res) => {
+  try {
+    const roads = await prisma.road.findMany({
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    res.json({
+      success: true,
+      count: roads.length,
+      data: roads,
+    });
+  } catch (err) {
+    console.error("Roads fetch error:", err);
+
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
+// GET single road by ID
+app.get("/api/roads/:id", async (req, res) => {
+  try {
+    const roadId = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(roadId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid road ID",
+      });
+    }
+
+    const road = await prisma.road.findUnique({
+      where: {
+        id: roadId,
+      },
+    });
+
+    if (!road) {
+      return res.status(404).json({
+        success: false,
+        error: "Road not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: road,
+    });
+  } catch (err) {
+    console.error("Road fetch error:", err);
+
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
+// UPDATE road connectivity status
+app.patch("/api/roads/:id/status", async (req, res) => {
+  try {
+    const roadId = parseInt(req.params.id, 10);
+    const { status, riskLevel, description } = req.body;
+
+    const validStatuses = [
+      "OPEN",
+      "RESTRICTED",
+      "BLOCKED",
+    ];
+
+    const validRiskLevels = [
+      "LOW",
+      "MODERATE",
+      "HIGH",
+      "CRITICAL",
+    ];
+
+    if (Number.isNaN(roadId)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid road ID",
+      });
+    }
+
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid status. Allowed values: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    if (
+      riskLevel &&
+      !validRiskLevels.includes(riskLevel)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid risk level. Allowed values: ${validRiskLevels.join(", ")}`,
+      });
+    }
+
+    const road = await prisma.road.update({
+      where: {
+        id: roadId,
+      },
+      data: {
+        ...(status && { status }),
+        ...(riskLevel && { riskLevel }),
+        ...(description !== undefined && {
+          description,
+        }),
+      },
+    });
+
+    console.log(
+      `🛣️ Road updated: ${road.name} | Status: ${road.status} | Risk: ${road.riskLevel}`
+    );
+
+    res.json({
+      success: true,
+      message: "Road connectivity status updated successfully.",
+      data: road,
+    });
+  } catch (err) {
+    console.error("Road update error:", err);
+
+    if (err.code === "P2025") {
+      return res.status(404).json({
+        success: false,
+        error: "Road not found",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
+// ==========================================
 // LIVE WEATHER GATEWAY
 // Open-Meteo - No API Key Required
 // ==========================================
