@@ -20,7 +20,9 @@ import {
   submitSosReport,
   fetchSosReports,
   resolveSosReport,
+  fetchRoads,
 } from "./api";
+
 import { exportAlertsToCSV, printIncidentReport } from "./exportUtils";
 import { playEmergencySiren, speakEmergencyAdvisory } from "./audioUtils";
 
@@ -147,6 +149,9 @@ export default function App() {
   const [shelters, setShelters] = useState([]);
   const [showEvacRoute, setShowEvacRoute] = useState(true);
 
+ // Road Connectivity Monitoring
+  const [roads, setRoads] = useState([]);
+
   // Live Weather (Open-Meteo)
   const [liveWeather, setLiveWeather] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
@@ -222,6 +227,12 @@ export default function App() {
         const backendAlerts = await fetchAlerts();
         if (backendAlerts && backendAlerts.length > 0) {
           setAlerts(backendAlerts);
+        }
+
+        const backendRoads = await fetchRoads();
+
+        if (backendRoads && backendRoads.length > 0) {
+          setRoads(backendRoads);
         }
 
         const backendShelters = await fetchShelters();
@@ -489,6 +500,16 @@ export default function App() {
 
   const criticalCount = locationsList.filter((l) => l.level === "CRITICAL").length;
   const highCount = locationsList.filter((l) => l.level === "HIGH").length;
+
+  const openRoads = roads.filter((road) => road.status === "OPEN").length;
+
+const restrictedRoads = roads.filter(
+  (road) => road.status === "RESTRICTED"
+).length;
+
+const blockedRoads = roads.filter(
+  (road) => road.status === "BLOCKED"
+).length;
 
   function getMarkerValue(location) {
     if (mapMode === "rainfall") return location.rainfall;
@@ -998,6 +1019,270 @@ export default function App() {
           </>
         )}
 
+        {/* ROAD CONNECTIVITY MONITORING */}
+<section
+  className="panel"
+  style={{
+    marginTop: "16px",
+    padding: "20px",
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "18px",
+      flexWrap: "wrap",
+      gap: "12px",
+    }}
+  >
+    <div>
+      <h3
+        style={{
+          fontSize: "18px",
+          color: "#38bdf8",
+          margin: 0,
+        }}
+      >
+        🛣️ Road Connectivity Monitoring
+      </h3>
+
+      <p
+        style={{
+          color: "#7f91a8",
+          fontSize: "12px",
+          marginTop: "5px",
+        }}
+      >
+        Landslide-sensitive transportation corridors across the North Eastern Region
+      </p>
+    </div>
+
+    <div
+      style={{
+        fontSize: "11px",
+        color: "#22c55e",
+        fontWeight: "bold",
+      }}
+    >
+      ● {roads.length} ROADS MONITORED
+    </div>
+  </div>
+
+  {/* ROAD STATUS SUMMARY */}
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+      gap: "12px",
+      marginBottom: "18px",
+    }}
+  >
+    <div
+      style={{
+        padding: "14px",
+        borderRadius: "8px",
+        background: "rgba(34,197,94,0.08)",
+        border: "1px solid rgba(34,197,94,0.25)",
+      }}
+    >
+      <div style={{ color: "#7f91a8", fontSize: "10px" }}>
+        🟢 OPEN
+      </div>
+
+      <strong
+        style={{
+          fontSize: "24px",
+          color: "#22c55e",
+        }}
+      >
+        {openRoads}
+      </strong>
+    </div>
+
+    <div
+      style={{
+        padding: "14px",
+        borderRadius: "8px",
+        background: "rgba(245,158,11,0.08)",
+        border: "1px solid rgba(245,158,11,0.25)",
+      }}
+    >
+      <div style={{ color: "#7f91a8", fontSize: "10px" }}>
+        🟡 RESTRICTED
+      </div>
+
+      <strong
+        style={{
+          fontSize: "24px",
+          color: "#f59e0b",
+        }}
+      >
+        {restrictedRoads}
+      </strong>
+    </div>
+
+    <div
+      style={{
+        padding: "14px",
+        borderRadius: "8px",
+        background: "rgba(255,48,79,0.08)",
+        border: "1px solid rgba(255,48,79,0.25)",
+      }}
+    >
+      <div style={{ color: "#7f91a8", fontSize: "10px" }}>
+        🔴 BLOCKED
+      </div>
+
+      <strong
+        style={{
+          fontSize: "24px",
+          color: "#ff304f",
+        }}
+      >
+        {blockedRoads}
+      </strong>
+    </div>
+  </div>
+
+  {/* ROAD LIST */}
+  {roads.length === 0 ? (
+    <div
+      style={{
+        padding: "20px",
+        textAlign: "center",
+        color: "#7f91a8",
+      }}
+    >
+      Loading road connectivity data...
+    </div>
+  ) : (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        gap: "12px",
+      }}
+    >
+      {roads.map((road) => {
+        const statusColor =
+          road.status === "OPEN"
+            ? "#22c55e"
+            : road.status === "RESTRICTED"
+            ? "#f59e0b"
+            : "#ff304f";
+
+        return (
+          <div
+            key={road.id}
+            style={{
+              padding: "15px",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.03)",
+              border: `1px solid ${statusColor}33`,
+              borderLeft: `4px solid ${statusColor}`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "8px",
+              }}
+            >
+              <div>
+                <strong
+                  style={{
+                    fontSize: "14px",
+                  }}
+                >
+                  🛣️ {road.name}
+                </strong>
+
+                <div
+                  style={{
+                    fontSize: "10px",
+                    color: "#7f91a8",
+                    marginTop: "3px",
+                  }}
+                >
+                  {road.state}
+                </div>
+              </div>
+
+              <span
+                style={{
+                  fontSize: "9px",
+                  fontWeight: "bold",
+                  padding: "4px 8px",
+                  height: "fit-content",
+                  borderRadius: "12px",
+                  background: `${statusColor}22`,
+                  color: statusColor,
+                }}
+              >
+                {road.status}
+              </span>
+            </div>
+
+            <div
+              style={{
+                marginTop: "12px",
+                fontSize: "12px",
+                color: "#c7d0d8",
+              }}
+            >
+              📍 {road.startPoint} → {road.endPoint}
+            </div>
+
+            <div
+              style={{
+                marginTop: "10px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "9px",
+                  color: "#7f91a8",
+                }}
+              >
+                LANDSLIDE RISK
+              </span>
+
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: "bold",
+                  color: getRiskColor(road.riskLevel),
+                }}
+              >
+                {road.riskLevel}
+              </span>
+            </div>
+
+            {road.description && (
+              <p
+                style={{
+                  fontSize: "10px",
+                  color: "#7f91a8",
+                  margin: "10px 0 0",
+                  lineHeight: "1.5",
+                }}
+              >
+                {road.description}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+</section>
+
         {/* VIEW 2: RISK MONITORING */}
         {currentTab === "monitoring" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -1038,6 +1323,69 @@ export default function App() {
                       </Popup>
                     </CircleMarker>
                   ))}
+
+          {/* ROAD CONNECTIVITY MARKERS */}
+{roads.map((road) => {
+  const roadColor =
+    road.status === "OPEN"
+      ? "#22c55e"
+      : road.status === "RESTRICTED"
+      ? "#f59e0b"
+      : "#ff304f";
+
+  return (
+    <CircleMarker
+      key={`road-${road.id}`}
+      center={[road.lat, road.lng]}
+      radius={9}
+      pathOptions={{
+        color: roadColor,
+        fillColor: roadColor,
+        fillOpacity: 0.9,
+        weight: 2,
+      }}
+    >
+      <Popup>
+        <div style={{ minWidth: "180px" }}>
+          <strong>🛣️ {road.name}</strong>
+
+          <br />
+
+          <span style={{ fontSize: "12px" }}>
+            📍 {road.startPoint} → {road.endPoint}
+          </span>
+
+          <br />
+          <br />
+
+          <strong>Status: </strong>
+          <span style={{ color: roadColor }}>
+            {road.status}
+          </span>
+
+          <br />
+
+          <strong>Risk Level: </strong>
+          <span style={{ color: getRiskColor(road.riskLevel) }}>
+            {road.riskLevel}
+          </span>
+
+          {road.description && (
+            <>
+              <br />
+              <br />
+
+              <span style={{ fontSize: "11px" }}>
+                {road.description}
+              </span>
+            </>
+          )}
+        </div>
+      </Popup>
+    </CircleMarker>
+  );
+})}
+
                 </MapContainer>
               </div>
 

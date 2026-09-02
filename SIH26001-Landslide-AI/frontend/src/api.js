@@ -1,5 +1,4 @@
-const API_BASE_URL = 'https://landslide-backend1.onrender.com/api';
-
+const API_BASE_URL = 'http://localhost:5000/api';
 export const fetchHotspots = async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/hotspots`);
@@ -10,6 +9,22 @@ export const fetchHotspots = async () => {
     return [];
   }
 };
+
+export async function fetchRoads() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/roads`);
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || "Failed to fetch roads");
+    }
+
+    return data.data || [];
+  } catch (error) {
+    console.error("Road API error:", error);
+    return [];
+  }
+}
 
 export const predictRiskScore = async (payload) => {
   try {
