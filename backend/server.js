@@ -35,16 +35,16 @@ const triggerEmergencyProtocol = (alert) => {
     alert.level === "CRITICAL" || alert.score >= 80;
 
   const recipientChannels = isCritical
-    ? [
-        "📡 NDRF 1st Battalion Control (Guwahati)",
-        "🚨 State Disaster Management Authority (SDMA)",
-        "📲 Automated Public SMS Cell Broadcast (Cell-ID Hub)",
-        "📧 district-magistrate-emergency@nic.in",
-      ]
-    : [
-        "🟡 District Disaster Control Room (Standby)",
-        "📧 weather-monitoring-ner@imd.gov.in",
-      ];
+  ? [
+      "National Disaster Response Force (NDRF)",
+      "State Disaster Management Authority (SDMA)",
+      "District Disaster Management Authority (DDMA)",
+      "Automated Public Alert Broadcast System"
+    ]
+  : [
+      "District Disaster Control Room",
+      "State Disaster Monitoring Authority"
+    ];
 
   console.log(
     "\n=============================================================="

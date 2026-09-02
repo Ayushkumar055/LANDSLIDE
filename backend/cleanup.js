@@ -1,21 +1,35 @@
-// backend/cleanup.js
-require('dotenv').config();
-const { PrismaPg } = require('@prisma/adapter-pg');
-const { PrismaClient } = require('@prisma/client');
+const { PrismaPg } = require("@prisma/adapter-pg");
+const { PrismaClient } = require("@prisma/client");
+require("dotenv").config();
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL,
+});
+
 const prisma = new PrismaClient({ adapter });
 
 async function cleanup() {
-  const count = await prisma.hotspot.count();
-  console.log(`Before cleanup: ${count} hotspots`);
+  try {
+    console.log("Deleting old database data...");
 
-  await prisma.hotspot.deleteMany({});
+    await prisma.alertLog.deleteMany();
+    console.log("✓ Old alerts deleted");
 
-  const after = await prisma.hotspot.count();
-  console.log(`After cleanup: ${after} hotspots`);
+    await prisma.sosReport.deleteMany();
+    console.log("✓ Old SOS reports deleted");
+
+    await prisma.shelter.deleteMany();
+    console.log("✓ Old shelters deleted");
+
+    await prisma.hotspot.deleteMany();
+    console.log("✓ Old hotspots deleted");
+
+    console.log("\nDatabase cleaned successfully!");
+  } catch (error) {
+    console.error("Cleanup error:", error);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-cleanup()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
+cleanup();

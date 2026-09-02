@@ -614,7 +614,16 @@ export default function App() {
       )}
 
       {/* SIDEBAR */}
-      <aside className={`sidebar ${mobileSidebarOpen ? "sidebar-open" : ""}`}>
+      <aside
+  className="sidebar"
+  style={{
+    height: "100vh",
+    overflowY: "auto",
+    overflowX: "hidden",
+    scrollbarWidth: "thin",
+    scrollbarColor: "#38bdf8 transparent"
+  }}
+>
         <div className="brand">
           <div className="brand-icon">⛰</div>
           <div>
