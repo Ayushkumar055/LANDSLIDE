@@ -210,6 +210,17 @@ export default function App() {
     selected.risk,
   ]);
 
+  // Machine Learning prediction states
+  const [mlInputs, setMlInputs] = useState({
+    rainfall: selected.rainfall || 0,
+    slope: selected.slope || 0,
+    soil_moisture: 60,
+    elevation: selected.elevation || 0,
+  });
+  const [mlPrediction, setMlPrediction] = useState(null);
+  const [mlLoading, setMlLoading] = useState(false);
+  const [mlError, setMlError] = useState("");
+
   useEffect(() => {
     const initApp = async () => {
       try {
@@ -451,6 +462,14 @@ export default function App() {
 
   useEffect(() => {
     setSimulationRunning(false);
+    setMlInputs({
+      rainfall: selected.rainfall || 0,
+      slope: selected.slope || 0,
+      soil_moisture: 60,
+      elevation: selected.elevation || 0,
+    });
+    setMlPrediction(null);
+    setMlError("");
     setSimulatedRainfall(selected.rainfall);
     setLiveRiskScore(selected.risk);
     setLiveRiskLevel(selected.level);
@@ -531,6 +550,72 @@ const blockedRoads = roads.filter(
       return "#22c55e";
     }
     return getRiskColor(location.risk);
+  }
+
+  async function handleMLPrediction() {
+    setMlLoading(true);
+    setMlError("");
+
+    try {
+      const response = await fetch("http://localhost:5000/api/ml-predict-risk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rainfall: Number(mlInputs.rainfall),
+          slope: Number(mlInputs.slope),
+          soil_moisture: Number(mlInputs.soil_moisture),
+          elevation: Number(mlInputs.elevation),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.error || result?.message || "ML prediction request failed");
+      }
+
+      setMlPrediction(result);
+
+      const rawProbability =
+        result.probability ??
+        result.riskProbability ??
+        result.risk_score ??
+        result.riskScore ??
+        result.score;
+
+      if (typeof rawProbability === "number") {
+        const normalizedScore = Math.round(
+          rawProbability <= 1 ? rawProbability * 100 : rawProbability
+        );
+
+        const backendLevel =
+          result.riskLevel ?? result.risk_level ?? result.level;
+
+        let calculatedLevel = "LOW";
+        if (normalizedScore >= 80) calculatedLevel = "CRITICAL";
+        else if (normalizedScore >= 60) calculatedLevel = "HIGH";
+        else if (normalizedScore >= 40) calculatedLevel = "MODERATE";
+
+        setLiveRiskScore(normalizedScore);
+        setLiveRiskLevel(
+          typeof backendLevel === "string"
+            ? backendLevel.toUpperCase()
+            : calculatedLevel
+        );
+        setRiskHistory((previous) => [
+          ...previous.slice(-9),
+          normalizedScore,
+        ]);
+      }
+    } catch (error) {
+      console.error("ML prediction failed:", error);
+      setMlError(
+        error.message ||
+          "ML prediction failed. Please check whether the backend is running."
+      );
+    } finally {
+      setMlLoading(false);
+    }
   }
 
   async function issueEarlyWarning() {
@@ -925,6 +1010,234 @@ const blockedRoads = roads.filter(
                     <div><span>🏔 Elevation</span><strong>{selected.elevation} m</strong></div>
                     <div className="progress"><span style={{ width: `${Math.min(selected.elevation / 20, 100)}%` }}></span></div>
                   </div>
+                </div>
+
+                {/* MACHINE LEARNING PREDICTION */}
+                <div
+                  style={{
+                    margin: "14px 16px",
+                    padding: "14px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(168,85,247,0.35)",
+                    background: "rgba(168,85,247,0.06)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "14px",
+                    }}
+                  >
+                    <div>
+                      <strong
+                        style={{
+                          display: "block",
+                          fontSize: "12px",
+                          color: "#c084fc",
+                        }}
+                      >
+                        🤖 Machine Learning Prediction
+                      </strong>
+                      <small style={{ color: "#7f91a8", fontSize: "10px" }}>
+                        Model-based landslide probability analysis
+                      </small>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: "bold",
+                        padding: "4px 8px",
+                        borderRadius: "12px",
+                        background: "rgba(168,85,247,0.15)",
+                        color: "#c084fc",
+                      }}
+                    >
+                      ML MODEL
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gap: "10px",
+                    }}
+                  >
+                    {[
+                      ["rainfall", "🌧 Rainfall (mm)", 0, undefined],
+                      ["slope", "⛰ Slope (°)", 0, undefined],
+                      ["soil_moisture", "💧 Soil Moisture (%)", 0, 100],
+                      ["elevation", "📍 Elevation (m)", 0, undefined],
+                    ].map(([key, label, min, max]) => (
+                      <div key={key}>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "9px",
+                            color: "#7f91a8",
+                            marginBottom: "5px",
+                          }}
+                        >
+                          {label}
+                        </label>
+                        <input
+                          type="number"
+                          min={min}
+                          max={max}
+                          value={mlInputs[key]}
+                          onChange={(e) =>
+                            setMlInputs((previous) => ({
+                              ...previous,
+                              [key]: e.target.value,
+                            }))
+                          }
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "8px",
+                            borderRadius: "6px",
+                            background: "#0b111e",
+                            border: "1px solid rgba(255,255,255,0.12)",
+                            color: "#ffffff",
+                            outline: "none",
+                            fontSize: "11px",
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleMLPrediction}
+                    disabled={mlLoading}
+                    style={{
+                      width: "100%",
+                      marginTop: "14px",
+                      padding: "10px",
+                      borderRadius: "7px",
+                      border: "none",
+                      background: mlLoading
+                        ? "rgba(168,85,247,0.35)"
+                        : "#a855f7",
+                      color: "#ffffff",
+                      fontWeight: "bold",
+                      fontSize: "11px",
+                      cursor: mlLoading ? "wait" : "pointer",
+                    }}
+                  >
+                    {mlLoading
+                      ? "🤖 AI Model Analyzing..."
+                      : "🤖 Predict Landslide Risk"}
+                  </button>
+
+                  {mlError && (
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        padding: "9px",
+                        borderRadius: "6px",
+                        background: "rgba(255,48,79,0.1)",
+                        border: "1px solid rgba(255,48,79,0.3)",
+                        color: "#ff7083",
+                        fontSize: "10px",
+                      }}
+                    >
+                      ⚠ {mlError}
+                    </div>
+                  )}
+
+                  {mlPrediction && (
+                    <div
+                      style={{
+                        marginTop: "14px",
+                        padding: "12px",
+                        borderRadius: "8px",
+                        background: "rgba(0,0,0,0.25)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      {(() => {
+                        const rawProbability =
+                          mlPrediction.probability ??
+                          mlPrediction.riskProbability ??
+                          mlPrediction.risk_score ??
+                          mlPrediction.riskScore ??
+                          mlPrediction.score ??
+                          0;
+
+                        const probability = Math.round(
+                          rawProbability <= 1
+                            ? rawProbability * 100
+                            : rawProbability
+                        );
+
+                        const level = (
+                          mlPrediction.riskLevel ??
+                          mlPrediction.risk_level ??
+                          mlPrediction.level ??
+                          (probability >= 80
+                            ? "CRITICAL"
+                            : probability >= 60
+                            ? "HIGH"
+                            : probability >= 40
+                            ? "MODERATE"
+                            : "LOW")
+                        ).toUpperCase();
+
+                        return (
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div>
+                              <span
+                                style={{
+                                  display: "block",
+                                  fontSize: "9px",
+                                  color: "#7f91a8",
+                                }}
+                              >
+                                LANDSLIDE PROBABILITY
+                              </span>
+                              <strong
+                                style={{
+                                  fontSize: "24px",
+                                  color: "#c084fc",
+                                }}
+                              >
+                                {probability}%
+                              </strong>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <span
+                                style={{
+                                  display: "block",
+                                  fontSize: "9px",
+                                  color: "#7f91a8",
+                                }}
+                              >
+                                ML RISK LEVEL
+                              </span>
+                              <strong
+                                style={{
+                                  color: getRiskColor(level),
+                                  fontSize: "14px",
+                                }}
+                              >
+                                {level}
+                              </strong>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                 {nearestShelter && (

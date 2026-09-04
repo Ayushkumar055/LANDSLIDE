@@ -13,26 +13,33 @@ const app = express();
 // ==========================================
 // DATABASE
 // ==========================================
+
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,
 });
 
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({
+  adapter,
+});
 
 const PORT = process.env.PORT || 5000;
 
 // ==========================================
 // MIDDLEWARE
 // ==========================================
+
 app.use(cors());
+
 app.use(express.json());
 
 // ==========================================
 // AUTOMATED EMERGENCY DISPATCH GATEWAY
 // ==========================================
+
 const triggerEmergencyProtocol = (alert) => {
   const isCritical =
-    alert.level === "CRITICAL" || alert.score >= 80;
+    alert.level === "CRITICAL" ||
+    alert.score >= 80;
 
   const recipientChannels = isCritical
     ? [
@@ -46,8 +53,15 @@ const triggerEmergencyProtocol = (alert) => {
         "State Disaster Monitoring Authority",
       ];
 
-  console.log("\n==============================================================");
-  console.log(`🚨 [DISASTER GATEWAY ACTIVATED] Severity: ${alert.level}`);
+  console.log("");
+  console.log(
+    "=============================================================="
+  );
+
+  console.log(
+    `🚨 [DISASTER GATEWAY ACTIVATED] Severity: ${alert.level}`
+  );
+
   console.log(
     `📍 Location: ${alert.location} | Susceptibility: ${alert.score}/100 | Rain: ${alert.rainfall}mm`
   );
@@ -66,15 +80,25 @@ const triggerEmergencyProtocol = (alert) => {
     );
   }
 
-  console.log("==============================================================\n");
+  console.log(
+    "=============================================================="
+  );
+
+  console.log("");
 };
 
 // ==========================================
 // SOS → ROAD CONNECTIVITY AUTOMATION
 // ==========================================
 
-// Calculate distance between two coordinates in kilometres
-const calculateDistance = (lat1, lng1, lat2, lng2) => {
+// Calculate distance between two coordinates
+
+const calculateDistance = (
+  lat1,
+  lng1,
+  lat2,
+  lng2
+) => {
   const earthRadius = 6371;
 
   const dLat =
@@ -86,8 +110,12 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
   const a =
     Math.sin(dLat / 2) *
       Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
+    Math.cos(
+      (lat1 * Math.PI) / 180
+    ) *
+      Math.cos(
+        (lat2 * Math.PI) / 180
+      ) *
       Math.sin(dLng / 2) *
       Math.sin(dLng / 2);
 
@@ -101,7 +129,8 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
   return earthRadius * c;
 };
 
-// Find nearest monitored road and update its status
+// Find nearest road and update it
+
 const updateRoadFromSosReport = async (
   lat,
   lng,
@@ -113,9 +142,10 @@ const updateRoadFromSosReport = async (
     const reportText =
       `${issueType} ${description}`.toLowerCase();
 
-    // Check whether the report can affect a road
     const roadKeywords = [
       "road",
+      "crack",
+      "cracks",
       "blocked",
       "blockage",
       "landslide",
@@ -123,6 +153,8 @@ const updateRoadFromSosReport = async (
       "connectivity",
       "collapse",
       "collapsed",
+      "bridge",
+      "damage",
     ];
 
     const isRoadRelated =
@@ -147,8 +179,8 @@ const updateRoadFromSosReport = async (
       };
     }
 
-    // Find nearest road
     let nearestRoad = null;
+
     let shortestDistance = Infinity;
 
     for (const road of roads) {
@@ -162,11 +194,11 @@ const updateRoadFromSosReport = async (
 
       if (distance < shortestDistance) {
         shortestDistance = distance;
+
         nearestRoad = road;
       }
     }
 
-    // Prevent incorrect updates to roads very far away
     const MAX_DISTANCE_KM = 30;
 
     if (
@@ -175,18 +207,21 @@ const updateRoadFromSosReport = async (
     ) {
       return {
         updated: false,
+
         reason:
           "No monitored road found within 30 KM",
+
         distanceKm:
-          Math.round(shortestDistance * 100) / 100,
+          Math.round(
+            shortestDistance * 100
+          ) / 100,
       };
     }
 
-    // Default impact
     let newStatus = "RESTRICTED";
+
     let newRiskLevel = "HIGH";
 
-    // Severe road blockage
     const criticalKeywords = [
       "blocked",
       "completely blocked",
@@ -194,6 +229,7 @@ const updateRoadFromSosReport = async (
       "collapse",
       "collapsed",
       "impassable",
+      "completely damaged",
     ];
 
     const isCritical =
@@ -203,6 +239,7 @@ const updateRoadFromSosReport = async (
 
     if (isCritical) {
       newStatus = "BLOCKED";
+
       newRiskLevel = "CRITICAL";
     }
 
@@ -211,29 +248,60 @@ const updateRoadFromSosReport = async (
         where: {
           id: nearestRoad.id,
         },
+
         data: {
           status: newStatus,
+
           riskLevel: newRiskLevel,
+
           description:
             `AUTO-UPDATED FROM SOS REPORT: ${description}`,
         },
       });
 
-    console.log("\n==============================================================");
-    console.log("🛣️ ROAD CONNECTIVITY AUTO-UPDATE");
-    console.log(`📍 Report Location: ${location}`);
-    console.log(`🛣️ Nearest Road: ${updatedRoad.name}`);
+    console.log("");
+
     console.log(
-      `📏 Distance: ${shortestDistance.toFixed(2)} KM`
+      "=============================================================="
     );
-    console.log(`🚦 Status: ${updatedRoad.status}`);
-    console.log("==============================================================\n");
+
+    console.log(
+      "🛣️ ROAD CONNECTIVITY AUTO-UPDATE"
+    );
+
+    console.log(
+      `📍 Report Location: ${location}`
+    );
+
+    console.log(
+      `🛣️ Nearest Road: ${updatedRoad.name}`
+    );
+
+    console.log(
+      `📏 Distance: ${shortestDistance.toFixed(
+        2
+      )} KM`
+    );
+
+    console.log(
+      `🚦 Status: ${updatedRoad.status}`
+    );
+
+    console.log(
+      "=============================================================="
+    );
+
+    console.log("");
 
     return {
       updated: true,
+
       road: updatedRoad,
+
       distanceKm:
-        Math.round(shortestDistance * 100) / 100,
+        Math.round(
+          shortestDistance * 100
+        ) / 100,
     };
   } catch (error) {
     console.error(
@@ -243,6 +311,7 @@ const updateRoadFromSosReport = async (
 
     return {
       updated: false,
+
       reason: error.message,
     };
   }
@@ -251,6 +320,7 @@ const updateRoadFromSosReport = async (
 // ==========================================
 // HEALTH CHECK
 // ==========================================
+
 app.get("/", async (req, res) => {
   try {
     const hotspotCount =
@@ -261,11 +331,16 @@ app.get("/", async (req, res) => {
 
     res.json({
       status: "ONLINE",
-      database: "PostgreSQL (Neon Connected)",
+
+      database:
+        "PostgreSQL (Neon Connected)",
+
       system:
         "SIH26001 - Landslide AI Early Warning Platform",
+
       activeMonitoredLocations:
         hotspotCount,
+
       activeAlertsLogged:
         alertCount,
     });
@@ -277,6 +352,7 @@ app.get("/", async (req, res) => {
 
     res.status(500).json({
       status: "ERROR",
+
       message: err.message,
     });
   }
@@ -285,36 +361,44 @@ app.get("/", async (req, res) => {
 // ==========================================
 // FETCH HOTSPOTS
 // ==========================================
-app.get("/api/hotspots", async (req, res) => {
-  try {
-    const hotspots =
-      await prisma.hotspot.findMany({
-        orderBy: {
-          id: "asc",
-        },
+
+app.get(
+  "/api/hotspots",
+  async (req, res) => {
+    try {
+      const hotspots =
+        await prisma.hotspot.findMany({
+          orderBy: {
+            id: "asc",
+          },
+        });
+
+      res.json({
+        success: true,
+
+        count: hotspots.length,
+
+        data: hotspots,
       });
+    } catch (err) {
+      console.error(
+        "Hotspots error:",
+        err
+      );
 
-    res.json({
-      success: true,
-      count: hotspots.length,
-      data: hotspots,
-    });
-  } catch (err) {
-    console.error(
-      "Hotspots error:",
-      err
-    );
+      res.status(500).json({
+        success: false,
 
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+        error: err.message,
+      });
+    }
   }
-});
+);
 
 // ==========================================
-// AI SUSCEPTIBILITY SCORING ENGINE
+// NORMAL RISK PREDICTION
 // ==========================================
+
 app.post(
   "/api/predict-risk",
   (req, res) => {
@@ -379,8 +463,11 @@ app.post(
 
       res.json({
         success: true,
+
         riskScore: finalScore,
+
         riskLevel: level,
+
         recommendation,
       });
     } catch (err) {
@@ -391,6 +478,201 @@ app.post(
 
       res.status(500).json({
         success: false,
+
+        error: err.message,
+      });
+    }
+  }
+);
+
+// ==========================================
+// MACHINE LEARNING RISK PREDICTION
+// ==========================================
+
+app.post(
+  "/api/ml-predict-risk",
+  (req, res) => {
+    try {
+      const {
+        rainfall,
+        slope,
+        soil_moisture,
+        elevation,
+      } = req.body;
+
+      if (
+        rainfall === undefined ||
+        slope === undefined ||
+        soil_moisture === undefined ||
+        elevation === undefined
+      ) {
+        return res.status(400).json({
+          success: false,
+
+          error:
+            "rainfall, slope, soil_moisture and elevation are required",
+        });
+      }
+
+      // ML environment Python path
+      const pythonPath =
+        path.join(
+          __dirname,
+          "ml_env",
+          "Scripts",
+          "python.exe"
+        );
+
+      // ML prediction script path
+      const predictionScript =
+        path.join(
+          __dirname,
+          "ml",
+          "predict.py"
+        );
+
+      if (
+        !fs.existsSync(pythonPath)
+      ) {
+        return res.status(500).json({
+          success: false,
+
+          error:
+            `ML Python environment not found: ${pythonPath}`,
+        });
+      }
+
+      if (
+        !fs.existsSync(
+          predictionScript
+        )
+      ) {
+        return res.status(500).json({
+          success: false,
+
+          error:
+            `ML prediction script not found: ${predictionScript}`,
+        });
+      }
+
+      const inputData =
+        JSON.stringify({
+          rainfall:
+            Number(rainfall),
+
+          slope:
+            Number(slope),
+
+          soil_moisture:
+            Number(soil_moisture),
+
+          elevation:
+            Number(elevation),
+        });
+
+      console.log("");
+      console.log(
+        "🤖 ML PREDICTION REQUEST RECEIVED"
+      );
+
+      console.log(
+        "Input:",
+        inputData
+      );
+
+      execFile(
+        pythonPath,
+
+        [
+          predictionScript,
+          inputData,
+        ],
+
+        {
+          windowsHide: true,
+
+          maxBuffer:
+            1024 * 1024,
+        },
+
+        (
+          error,
+          stdout,
+          stderr
+        ) => {
+          if (error) {
+            console.error(
+              "ML prediction process error:",
+              error
+            );
+
+            if (stderr) {
+              console.error(
+                "Python stderr:",
+                stderr
+              );
+            }
+
+            return res
+              .status(500)
+              .json({
+                success: false,
+
+                error:
+                  "Machine learning prediction failed",
+
+                details:
+                  stderr ||
+                  error.message,
+              });
+          }
+
+          try {
+            const cleanOutput =
+              stdout.trim();
+
+            const result =
+              JSON.parse(
+                cleanOutput
+              );
+
+            console.log(
+              "🤖 ML Prediction Result:",
+              result
+            );
+
+            return res.json(
+              result
+            );
+          } catch (parseError) {
+            console.error(
+              "Invalid ML output:",
+              stdout
+            );
+
+            return res
+              .status(500)
+              .json({
+                success: false,
+
+                error:
+                  "Invalid response received from ML model",
+
+                details:
+                  stdout,
+              });
+          }
+        }
+      );
+    } catch (err) {
+      console.error(
+        "ML API error:",
+        err
+      );
+
+      res.status(500).json({
+        success: false,
+
         error: err.message,
       });
     }
@@ -400,78 +682,102 @@ app.post(
 // ==========================================
 // SAFE SHELTERS
 // ==========================================
-app.get("/api/shelters", async (req, res) => {
-  try {
-    const shelters =
-      await prisma.shelter.findMany({
-        orderBy: {
-          id: "asc",
-        },
+
+app.get(
+  "/api/shelters",
+  async (req, res) => {
+    try {
+      const shelters =
+        await prisma.shelter.findMany({
+          orderBy: {
+            id: "asc",
+          },
+        });
+
+      res.json({
+        success: true,
+
+        count: shelters.length,
+
+        data: shelters,
       });
+    } catch (err) {
+      console.error(
+        "Shelters error:",
+        err
+      );
 
-    res.json({
-      success: true,
-      count: shelters.length,
-      data: shelters,
-    });
-  } catch (err) {
-    console.error(
-      "Shelters error:",
-      err
-    );
+      res.status(500).json({
+        success: false,
 
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+        error: err.message,
+      });
+    }
   }
-});
+);
 
 // ==========================================
 // ROAD CONNECTIVITY MONITORING
 // ==========================================
 
-// GET all roads
-app.get("/api/roads", async (req, res) => {
-  try {
-    const roads =
-      await prisma.road.findMany({
-        orderBy: {
-          id: "asc",
-        },
+// GET ALL ROADS
+
+app.get(
+  "/api/roads",
+  async (req, res) => {
+    try {
+      const roads =
+        await prisma.road.findMany({
+          orderBy: {
+            id: "asc",
+          },
+        });
+
+      res.json({
+        success: true,
+
+        count: roads.length,
+
+        data: roads,
       });
+    } catch (err) {
+      console.error(
+        "Roads fetch error:",
+        err
+      );
 
-    res.json({
-      success: true,
-      count: roads.length,
-      data: roads,
-    });
-  } catch (err) {
-    console.error(
-      "Roads fetch error:",
-      err
-    );
+      res.status(500).json({
+        success: false,
 
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+        error: err.message,
+      });
+    }
   }
-});
+);
 
-// GET single road
+// GET SINGLE ROAD
+
 app.get(
   "/api/roads/:id",
   async (req, res) => {
     try {
       const roadId =
-        parseInt(req.params.id, 10);
+        parseInt(
+          req.params.id,
+          10
+        );
 
-      if (Number.isNaN(roadId)) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid road ID",
-        });
+      if (
+        Number.isNaN(roadId)
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "Invalid road ID",
+          });
       }
 
       const road =
@@ -482,14 +788,19 @@ app.get(
         });
 
       if (!road) {
-        return res.status(404).json({
-          success: false,
-          error: "Road not found",
-        });
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            error:
+              "Road not found",
+          });
       }
 
       res.json({
         success: true,
+
         data: road,
       });
     } catch (err) {
@@ -500,19 +811,24 @@ app.get(
 
       res.status(500).json({
         success: false,
+
         error: err.message,
       });
     }
   }
 );
 
-// UPDATE road status manually
+// UPDATE ROAD STATUS
+
 app.patch(
   "/api/roads/:id/status",
   async (req, res) => {
     try {
       const roadId =
-        parseInt(req.params.id, 10);
+        parseInt(
+          req.params.id,
+          10
+        );
 
       const {
         status,
@@ -533,31 +849,49 @@ app.patch(
         "CRITICAL",
       ];
 
-      if (Number.isNaN(roadId)) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid road ID",
-        });
+      if (
+        Number.isNaN(roadId)
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "Invalid road ID",
+          });
       }
 
       if (
         status &&
-        !validStatuses.includes(status)
+        !validStatuses.includes(
+          status
+        )
       ) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid road status",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "Invalid road status",
+          });
       }
 
       if (
         riskLevel &&
-        !validRiskLevels.includes(riskLevel)
+        !validRiskLevels.includes(
+          riskLevel
+        )
       ) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid risk level",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "Invalid risk level",
+          });
       }
 
       const road =
@@ -565,12 +899,18 @@ app.patch(
           where: {
             id: roadId,
           },
+
           data: {
-            ...(status && { status }),
+            ...(status && {
+              status,
+            }),
+
             ...(riskLevel && {
               riskLevel,
             }),
-            ...(description !== undefined && {
+
+            ...(description !==
+              undefined && {
               description,
             }),
           },
@@ -578,8 +918,10 @@ app.patch(
 
       res.json({
         success: true,
+
         message:
           "Road connectivity status updated successfully.",
+
         data: road,
       });
     } catch (err) {
@@ -588,15 +930,22 @@ app.patch(
         err
       );
 
-      if (err.code === "P2025") {
-        return res.status(404).json({
-          success: false,
-          error: "Road not found",
-        });
+      if (
+        err.code === "P2025"
+      ) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            error:
+              "Road not found",
+          });
       }
 
       res.status(500).json({
         success: false,
+
         error: err.message,
       });
     }
@@ -604,19 +953,26 @@ app.patch(
 );
 
 // ==========================================
-// LIVE WEATHER GATEWAY
+// LIVE WEATHER API
 // ==========================================
+
 app.get(
   "/api/live-weather",
   async (req, res) => {
-    const { lat, lng } = req.query;
+    const {
+      lat,
+      lng,
+    } = req.query;
 
     if (!lat || !lng) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "lat and lng query params are required",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            "lat and lng query params are required",
+        });
     }
 
     try {
@@ -646,7 +1002,9 @@ app.get(
           ?.precipitation || [];
 
       const last24h =
-        hourlyPrecipitation.slice(-24);
+        hourlyPrecipitation.slice(
+          -24
+        );
 
       const rainfall24h =
         last24h.reduce(
@@ -657,18 +1015,23 @@ app.get(
 
       res.json({
         success: true,
+
         source:
           "Open-Meteo Live Weather Feed",
+
         currentPrecipitationMm:
           weatherData.current
             ?.precipitation ?? 0,
+
         rainfall24hMm:
           Math.round(
             rainfall24h * 10
           ) / 10,
+
         weatherCode:
           weatherData.current
             ?.weather_code ?? null,
+
         fetchedAt:
           new Date().toISOString(),
       });
@@ -680,150 +1043,196 @@ app.get(
 
       res.status(500).json({
         success: false,
+
         error:
           "Failed to reach live weather feed",
-        details: err.message,
+
+        details:
+          err.message,
       });
     }
   }
 );
 
 // ==========================================
-// CITIZEN SOS / COMMUNITY REPORTS
+// CITIZEN SOS REPORTS
 // ==========================================
 
-// GET SOS reports
-app.get("/api/sos", async (req, res) => {
-  try {
-    const reports =
-      await prisma.sosReport.findMany({
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 30,
+// GET SOS REPORTS
+
+app.get(
+  "/api/sos",
+  async (req, res) => {
+    try {
+      const reports =
+        await prisma.sosReport.findMany({
+          orderBy: {
+            createdAt: "desc",
+          },
+
+          take: 30,
+        });
+
+      res.json({
+        success: true,
+
+        reports,
       });
-
-    res.json({
-      success: true,
-      reports,
-    });
-  } catch (err) {
-    console.error(
-      "SOS fetch error:",
-      err
-    );
-
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
-  }
-});
-
-// POST SOS report + automatic road update
-app.post("/api/sos", async (req, res) => {
-  try {
-    const {
-      reporterName,
-      location,
-      lat,
-      lng,
-      issueType,
-      description,
-    } = req.body;
-
-    if (
-      !location ||
-      !issueType ||
-      !description
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "location, issueType and description are required",
-      });
-    }
-
-    const latitude =
-      parseFloat(lat);
-
-    const longitude =
-      parseFloat(lng);
-
-    if (
-      Number.isNaN(latitude) ||
-      Number.isNaN(longitude)
-    ) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Valid latitude and longitude are required",
-      });
-    }
-
-    // Save SOS report
-    const savedReport =
-      await prisma.sosReport.create({
-        data: {
-          reporterName:
-            reporterName ||
-            "Anonymous Citizen",
-          location,
-          lat: latitude,
-          lng: longitude,
-          issueType,
-          description,
-        },
-      });
-
-    console.log(
-      `\n📢 [CITIZEN SOS RECEIVED] ${issueType} near ${location}`
-    );
-
-    // Automatically analyse impact on roads
-    const roadUpdate =
-      await updateRoadFromSosReport(
-        latitude,
-        longitude,
-        issueType,
-        description,
-        location
+    } catch (err) {
+      console.error(
+        "SOS fetch error:",
+        err
       );
 
-    res.status(201).json({
-      success: true,
-      message:
-        "Ground report received and logged.",
-      report: savedReport,
-      roadConnectivityUpdate:
-        roadUpdate,
-    });
-  } catch (err) {
-    console.error(
-      "SOS submit error:",
-      err
-    );
+      res.status(500).json({
+        success: false,
 
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+        error: err.message,
+      });
+    }
   }
-});
+);
+
+// POST SOS REPORT
+
+app.post(
+  "/api/sos",
+  async (req, res) => {
+    try {
+      const {
+        reporterName,
+        location,
+        lat,
+        lng,
+        issueType,
+        description,
+      } = req.body;
+
+      if (
+        !location ||
+        !issueType ||
+        !description
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "location, issueType and description are required",
+          });
+      }
+
+      const latitude =
+        parseFloat(lat);
+
+      const longitude =
+        parseFloat(lng);
+
+      if (
+        Number.isNaN(
+          latitude
+        ) ||
+        Number.isNaN(
+          longitude
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "Valid latitude and longitude are required",
+          });
+      }
+
+      const savedReport =
+        await prisma.sosReport.create({
+          data: {
+            reporterName:
+              reporterName ||
+              "Anonymous Citizen",
+
+            location,
+
+            lat: latitude,
+
+            lng: longitude,
+
+            issueType,
+
+            description,
+          },
+        });
+
+      console.log("");
+
+      console.log(
+        `📢 [CITIZEN SOS RECEIVED] ${issueType} near ${location}`
+      );
+
+      const roadUpdate =
+        await updateRoadFromSosReport(
+          latitude,
+          longitude,
+          issueType,
+          description,
+          location
+        );
+
+      res.status(201).json({
+        success: true,
+
+        message:
+          "Ground report received and logged.",
+
+        report:
+          savedReport,
+
+        roadConnectivityUpdate:
+          roadUpdate,
+      });
+    } catch (err) {
+      console.error(
+        "SOS submit error:",
+        err
+      );
+
+      res.status(500).json({
+        success: false,
+
+        error: err.message,
+      });
+    }
+  }
+);
 
 // RESOLVE SOS REPORT
+
 app.patch(
   "/api/sos/:id/resolve",
   async (req, res) => {
     try {
       const reportId =
-        parseInt(req.params.id, 10);
+        parseInt(
+          req.params.id,
+          10
+        );
 
-      if (Number.isNaN(reportId)) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid SOS report ID",
-        });
+      if (
+        Number.isNaN(
+          reportId
+        )
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "Invalid SOS report ID",
+          });
       }
 
       const updated =
@@ -831,13 +1240,16 @@ app.patch(
           where: {
             id: reportId,
           },
+
           data: {
-            status: "RESOLVED",
+            status:
+              "RESOLVED",
           },
         });
 
       res.json({
         success: true,
+
         report: updated,
       });
     } catch (err) {
@@ -848,6 +1260,7 @@ app.patch(
 
       res.status(500).json({
         success: false,
+
         error: err.message,
       });
     }
@@ -857,36 +1270,44 @@ app.patch(
 // ==========================================
 // FETCH ALERTS
 // ==========================================
-app.get("/api/alerts", async (req, res) => {
-  try {
-    const alerts =
-      await prisma.alertLog.findMany({
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 20,
+
+app.get(
+  "/api/alerts",
+  async (req, res) => {
+    try {
+      const alerts =
+        await prisma.alertLog.findMany({
+          orderBy: {
+            createdAt: "desc",
+          },
+
+          take: 20,
+        });
+
+      res.json({
+        success: true,
+
+        alerts,
       });
+    } catch (err) {
+      console.error(
+        "Alerts fetch error:",
+        err
+      );
 
-    res.json({
-      success: true,
-      alerts,
-    });
-  } catch (err) {
-    console.error(
-      "Alerts fetch error:",
-      err
-    );
+      res.status(500).json({
+        success: false,
 
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+        error: err.message,
+      });
+    }
   }
-});
+);
 
 // ==========================================
-// DISPATCH & STORE ALERT
+// DISPATCH ALERT
 // ==========================================
+
 app.post(
   "/api/alerts",
   async (req, res) => {
@@ -905,18 +1326,22 @@ app.post(
             location:
               location ||
               "Unknown Location",
+
             level:
               level ||
               "MODERATE",
+
             score:
               parseInt(
                 score || 0,
                 10
               ),
+
             rainfall:
               parseFloat(
                 rainfall || 0
               ),
+
             dispatchedTo: [
               "NDRF State Unit",
               "District Disaster Authority",
@@ -931,13 +1356,17 @@ app.post(
 
       res.status(201).json({
         success: true,
+
         message:
           "Alert persisted and emergency protocol processed.",
+
         alert: {
           ...savedAlert,
+
           title:
             title ||
             `Landslide Risk Alert - ${savedAlert.level}`,
+
           timestamp:
             new Date(
               savedAlert.createdAt
@@ -945,6 +1374,7 @@ app.post(
               [],
               {
                 hour: "2-digit",
+
                 minute: "2-digit",
               }
             ),
@@ -958,6 +1388,7 @@ app.post(
 
       res.status(500).json({
         success: false,
+
         error: err.message,
       });
     }
@@ -965,243 +1396,341 @@ app.post(
 );
 
 // ==========================================
-// HINDI TEXT-TO-SPEECH
+// HINDI TEXT TO SPEECH
 // ==========================================
-app.post("/api/tts", async (req, res) => {
-  try {
-    const {
-      text,
-      language,
-    } = req.body;
 
-    if (!text) {
-      return res.status(400).json({
-        success: false,
-        error: "Text is required",
-      });
-    }
-
-    if (language !== "hi") {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Piper TTS route currently supports Hindi only.",
-      });
-    }
-
-    const modelPath =
-      path.join(
-        __dirname,
-        "hi_IN-rohan-medium.onnx"
-      );
-
-    if (!fs.existsSync(modelPath)) {
-      return res.status(500).json({
-        success: false,
-        error:
-          "Hindi Piper voice model not found.",
-      });
-    }
-
-    const pythonPath =
-      path.join(
-        __dirname,
-        ".venv",
-        "Scripts",
-        "python.exe"
-      );
-
-    if (!fs.existsSync(pythonPath)) {
-      return res.status(500).json({
-        success: false,
-        error:
-          "Python virtual environment not found.",
-      });
-    }
-
-    const ttsScript =
-      path.join(
-        __dirname,
-        "tts.py"
-      );
-
-    if (!fs.existsSync(ttsScript)) {
-      return res.status(500).json({
-        success: false,
-        error:
-          "tts.py not found in backend folder.",
-      });
-    }
-
-    const outputFile =
-      path.join(
-        __dirname,
-        `tts-${Date.now()}.wav`
-      );
-
-    execFile(
-      pythonPath,
-      [
-        ttsScript,
+app.post(
+  "/api/tts",
+  async (req, res) => {
+    try {
+      const {
         text,
-        outputFile,
-      ],
-      {
-        windowsHide: true,
-        maxBuffer:
-          1024 * 1024,
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          console.error(
-            "Piper TTS error:",
-            error
-          );
+        language,
+      } = req.body;
 
-          if (stderr) {
-            console.error(
-              "Piper stderr:",
-              stderr
-            );
-          }
-
-          return res.status(500).json({
+      if (!text) {
+        return res
+          .status(400)
+          .json({
             success: false,
+
             error:
-              "Hindi TTS generation failed.",
-            details:
-              error.message,
+              "Text is required",
           });
-        }
-
-        if (!fs.existsSync(outputFile)) {
-          return res.status(500).json({
-            success: false,
-            error:
-              "TTS audio file was not generated.",
-          });
-        }
-
-        res.setHeader(
-          "Content-Type",
-          "audio/wav"
-        );
-
-        res.setHeader(
-          "Content-Disposition",
-          'inline; filename="hindi-alert.wav"'
-        );
-
-        const audioStream =
-          fs.createReadStream(
-            outputFile
-          );
-
-        audioStream.pipe(res);
-
-        audioStream.on(
-          "close",
-          () => {
-            fs.unlink(
-              outputFile,
-              (unlinkError) => {
-                if (unlinkError) {
-                  console.warn(
-                    "Could not delete temporary TTS file:",
-                    unlinkError.message
-                  );
-                }
-              }
-            );
-          }
-        );
       }
-    );
-  } catch (err) {
-    console.error(
-      "TTS route error:",
-      err
-    );
 
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+      if (
+        language !== "hi"
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+
+            error:
+              "Piper TTS route currently supports Hindi only.",
+          });
+      }
+
+      const modelPath =
+        path.join(
+          __dirname,
+          "hi_IN-rohan-medium.onnx"
+        );
+
+      if (
+        !fs.existsSync(
+          modelPath
+        )
+      ) {
+        return res
+          .status(500)
+          .json({
+            success: false,
+
+            error:
+              "Hindi Piper voice model not found.",
+          });
+      }
+
+      const pythonPath =
+        path.join(
+          __dirname,
+          ".venv",
+          "Scripts",
+          "python.exe"
+        );
+
+      if (
+        !fs.existsSync(
+          pythonPath
+        )
+      ) {
+        return res
+          .status(500)
+          .json({
+            success: false,
+
+            error:
+              "Python virtual environment not found.",
+          });
+      }
+
+      const ttsScript =
+        path.join(
+          __dirname,
+          "tts.py"
+        );
+
+      if (
+        !fs.existsSync(
+          ttsScript
+        )
+      ) {
+        return res
+          .status(500)
+          .json({
+            success: false,
+
+            error:
+              "tts.py not found in backend folder.",
+          });
+      }
+
+      const outputFile =
+        path.join(
+          __dirname,
+          `tts-${Date.now()}.wav`
+        );
+
+      execFile(
+        pythonPath,
+
+        [
+          ttsScript,
+          text,
+          outputFile,
+        ],
+
+        {
+          windowsHide: true,
+
+          maxBuffer:
+            1024 * 1024,
+        },
+
+        (
+          error,
+          stdout,
+          stderr
+        ) => {
+          if (error) {
+            console.error(
+              "Piper TTS error:",
+              error
+            );
+
+            if (stderr) {
+              console.error(
+                "Piper stderr:",
+                stderr
+              );
+            }
+
+            return res
+              .status(500)
+              .json({
+                success: false,
+
+                error:
+                  "Hindi TTS generation failed.",
+
+                details:
+                  error.message,
+              });
+          }
+
+          if (
+            !fs.existsSync(
+              outputFile
+            )
+          ) {
+            return res
+              .status(500)
+              .json({
+                success: false,
+
+                error:
+                  "TTS audio file was not generated.",
+              });
+          }
+
+          res.setHeader(
+            "Content-Type",
+            "audio/wav"
+          );
+
+          res.setHeader(
+            "Content-Disposition",
+            'inline; filename="hindi-alert.wav"'
+          );
+
+          const audioStream =
+            fs.createReadStream(
+              outputFile
+            );
+
+          audioStream.pipe(res);
+
+          audioStream.on(
+            "close",
+            () => {
+              fs.unlink(
+                outputFile,
+                (
+                  unlinkError
+                ) => {
+                  if (
+                    unlinkError
+                  ) {
+                    console.warn(
+                      "Could not delete temporary TTS file:",
+                      unlinkError.message
+                    );
+                  }
+                }
+              );
+            }
+          );
+        }
+      );
+    } catch (err) {
+      console.error(
+        "TTS route error:",
+        err
+      );
+
+      res.status(500).json({
+        success: false,
+
+        error: err.message,
+      });
+    }
   }
-});
+);
 
 // ==========================================
 // 404 HANDLER
 // ==========================================
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error:
-      `Route not found: ${req.method} ${req.originalUrl}`,
-  });
-});
+
+app.use(
+  (req, res) => {
+    res.status(404).json({
+      success: false,
+
+      error:
+        `Route not found: ${req.method} ${req.originalUrl}`,
+    });
+  }
+);
 
 // ==========================================
 // GLOBAL ERROR HANDLER
 // ==========================================
-app.use((err, req, res, next) => {
-  console.error(
-    "Unhandled server error:",
-    err
-  );
 
-  res.status(500).json({
-    success: false,
-    error: err.message,
-  });
-});
+app.use(
+  (
+    err,
+    req,
+    res,
+    next
+  ) => {
+    console.error(
+      "Unhandled server error:",
+      err
+    );
+
+    res.status(
+      err.status || 500
+    ).json({
+      success: false,
+
+      error:
+        err.message ||
+        "Internal server error",
+    });
+  }
+);
 
 // ==========================================
 // START SERVER
 // ==========================================
-app.listen(PORT, () => {
-  console.log("");
-  console.log(
-    "=============================================================="
-  );
-  console.log(
-    "        LANDSLIDE AI BACKEND"
-  );
-  console.log(
-    "=============================================================="
-  );
-  console.log(
-    `✅ Server running on http://localhost:${PORT}`
-  );
-  console.log(
-    "✅ PostgreSQL / Prisma connected"
-  );
-  console.log(
-    "✅ Hotspot API ready"
-  );
-  console.log(
-    "✅ Risk prediction API ready"
-  );
-  console.log(
-    "✅ Shelter API ready"
-  );
-  console.log(
-    "✅ Road connectivity API ready"
-  );
-  console.log(
-    "✅ SOS → Road automation ready"
-  );
-  console.log(
-    "✅ Live weather API ready"
-  );
-  console.log(
-    "✅ Alert dispatch API ready"
-  );
-  console.log(
-    "✅ Hindi Piper TTS API ready"
-  );
-  console.log(
-    "=============================================================="
-  );
-  console.log("");
-});
+
+app.listen(
+  PORT,
+  () => {
+    console.log("");
+
+    console.log(
+      "=============================================================="
+    );
+
+    console.log(
+      "        LANDSLIDE AI BACKEND"
+    );
+
+    console.log(
+      "=============================================================="
+    );
+
+    console.log(
+      `✅ Server running on http://localhost:${PORT}`
+    );
+
+    console.log(
+      "✅ PostgreSQL / Prisma connected"
+    );
+
+    console.log(
+      "✅ Hotspot API ready"
+    );
+
+    console.log(
+      "✅ Normal risk prediction API ready"
+    );
+
+    console.log(
+      "✅ Machine Learning prediction API ready"
+    );
+
+    console.log(
+      "✅ Shelter API ready"
+    );
+
+    console.log(
+      "✅ Road connectivity API ready"
+    );
+
+    console.log(
+      "✅ SOS → Road automation ready"
+    );
+
+    console.log(
+      "✅ Live weather API ready"
+    );
+
+    console.log(
+      "✅ Alert dispatch API ready"
+    );
+
+    console.log(
+      "✅ Hindi Piper TTS API ready"
+    );
+
+    console.log(
+      "=============================================================="
+    );
+
+    console.log("");
+  }
+);
