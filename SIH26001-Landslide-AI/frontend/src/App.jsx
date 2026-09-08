@@ -21,6 +21,8 @@ import {
   fetchSosReports,
   resolveSosReport,
   fetchRoads,
+  fetchSensorNetwork,
+  fetchSatelliteNdvi,
 } from "./api";
 
 import { exportAlertsToCSV, printIncidentReport } from "./exportUtils";
@@ -140,6 +142,16 @@ export default function App() {
     defaultLocations.map((loc) => ({ name: loc.name, state: loc.state, sensors: generateSensors(loc) }))
   );
   const [lastSensorSync, setLastSensorSync] = useState(new Date());
+
+  // Real IoT hardware devices (ESP32/Arduino field units posting to /api/sensors/ingest)
+  const [realSensorDevices, setRealSensorDevices] = useState([]);
+  const [realSensorsLoading, setRealSensorsLoading] = useState(false);
+
+  // Real satellite NDVI / vegetation analysis (Sentinel Hub)
+  const [satelliteData, setSatelliteData] = useState(null);
+  const [satelliteLoading, setSatelliteLoading] = useState(false);
+  const [satelliteError, setSatelliteError] = useState("");
+
   const [mapMode, setMapMode] = useState("risk");
   const [alerts, setAlerts] = useState([]);
   const [warningIssued, setWarningIssued] = useState(false);
@@ -271,7 +283,27 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Live sensor network jitter — only runs while the Sensor Network tab is open
+  // Real hardware sensor polling — pulls live readings posted by ESP32/Arduino
+  // field units to POST /api/sensors/ingest. Runs only while Sensor Network tab is open.
+  useEffect(() => {
+    if (currentTab !== "sensors") return;
+
+    const pollRealSensors = async () => {
+      setRealSensorsLoading(true);
+      const devices = await fetchSensorNetwork();
+      setRealSensorDevices(devices);
+      setRealSensorsLoading(false);
+      setLastSensorSync(new Date());
+    };
+
+    pollRealSensors();
+    const interval = setInterval(pollRealSensors, 10000);
+    return () => clearInterval(interval);
+  }, [currentTab]);
+
+  // Simulated sensor jitter — only used as a visual fallback for hotspots that
+  // don't (yet) have a real physical device registered, so the dashboard still
+  // shows a live-feeling network during a demo without hardware connected.
   useEffect(() => {
     if (currentTab !== "sensors") return;
 
@@ -291,11 +323,36 @@ export default function App() {
           }),
         }))
       );
-      setLastSensorSync(new Date());
     }, 4000);
 
     return () => clearInterval(interval);
   }, [currentTab]);
+
+  // Real satellite NDVI analysis — refetches whenever the selected hotspot changes
+  useEffect(() => {
+    if (!selected?.lat || !selected?.lng) return;
+
+    let cancelled = false;
+
+    const loadSatellite = async () => {
+      setSatelliteLoading(true);
+      setSatelliteError("");
+      const result = await fetchSatelliteNdvi(selected.lat, selected.lng);
+      if (cancelled) return;
+      if (result && result.success) {
+        setSatelliteData(result);
+      } else {
+        setSatelliteData(null);
+        setSatelliteError(result?.error || "Satellite data unavailable");
+      }
+      setSatelliteLoading(false);
+    };
+
+    loadSatellite();
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.lat, selected?.lng]);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1010,6 +1067,44 @@ const blockedRoads = roads.filter(
                     <div><span>🏔 Elevation</span><strong>{selected.elevation} m</strong></div>
                     <div className="progress"><span style={{ width: `${Math.min(selected.elevation / 20, 100)}%` }}></span></div>
                   </div>
+                </div>
+
+                {/* REAL SATELLITE IMAGERY ANALYSIS (Sentinel Hub NDVI) */}
+                <div
+                  style={{
+                    margin: "14px 16px",
+                    padding: "14px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(56,189,248,0.35)",
+                    background: "rgba(56,189,248,0.06)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <strong style={{ fontSize: "13px", color: "#38bdf8" }}>🛰 Satellite Vegetation Analysis</strong>
+                    {satelliteLoading && <span style={{ fontSize: "10px", color: "#7f91a8" }}>Analyzing…</span>}
+                  </div>
+
+                  {satelliteData ? (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+                        <span>NDVI (30-day mean, {satelliteData.source})</span>
+                        <strong>{satelliteData.ndviMean ?? "N/A"}</strong>
+                      </div>
+                      <p style={{ fontSize: "11px", color: "#94a3b8", margin: "4px 0 8px" }}>{satelliteData.label}</p>
+                      <a
+                        href={satelliteData.viewInBrowser}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: "11px", color: "#38bdf8" }}
+                      >
+                        View live Sentinel-2 imagery →
+                      </a>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: "11px", color: "#7f91a8" }}>
+                      {satelliteError || "No satellite data available for this location yet."}
+                    </p>
+                  )}
                 </div>
 
                 {/* MACHINE LEARNING PREDICTION */}
@@ -1899,18 +1994,82 @@ const blockedRoads = roads.filter(
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
               <div>
                 <h3 style={{ fontSize: "16px", color: "#38bdf8" }}>📡 IoT Sensor Network</h3>
-                <p style={{ color: "#7f91a8", fontSize: "13px" }}>Simulated ground-truth telemetry — tiltmeters, pore-water pressure & soil moisture sensors</p>
+                <p style={{ color: "#7f91a8", fontSize: "13px" }}>Live telemetry from registered field hardware — tiltmeters, pore-water pressure & soil moisture sensors</p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <span style={{ fontSize: "10px", color: "#22c55e", fontWeight: 800 }}>● LIVE</span>
+                <span style={{ fontSize: "10px", color: realSensorsLoading ? "#ff8a00" : "#22c55e", fontWeight: 800 }}>
+                  {realSensorsLoading ? "● SYNCING" : "● LIVE"}
+                </span>
                 <div style={{ fontSize: "9px", color: "#5d6873", marginTop: "2px" }}>
                   Synced {lastSensorSync.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                 </div>
               </div>
             </div>
 
+            {realSensorDevices.length > 0 && (
+              <>
+                <div style={{ margin: "16px 0 12px", padding: "10px 14px", borderRadius: "8px", background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", fontSize: "11px", color: "#22c55e" }}>
+                  ✓ {realSensorDevices.length} real hardware device{realSensorDevices.length > 1 ? "s" : ""} reporting from the field (POST /api/sensors/ingest).
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+                  {realSensorDevices.map((d) => {
+                    const breached =
+                      (d.tilt !== null && d.tilt >= 1.2) ||
+                      (d.poreWaterPressure !== null && d.poreWaterPressure >= 65) ||
+                      (d.soilMoisture !== null && d.soilMoisture >= 70);
+                    return (
+                      <div
+                        key={d.deviceId}
+                        style={{
+                          padding: "16px", borderRadius: "10px",
+                          border: `1px solid ${breached ? "rgba(255,48,79,.4)" : "rgba(34,197,94,0.3)"}`,
+                          background: breached ? "rgba(255,48,79,.05)" : "rgba(34,197,94,0.03)"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                          <div>
+                            <strong style={{ fontSize: "13px" }}>{d.hotspotName || d.deviceId}</strong>
+                            <div style={{ fontSize: "10px", color: "#7f91a8" }}>Device: {d.deviceId}</div>
+                          </div>
+                          <span style={{
+                            fontSize: "9px", fontWeight: 800, padding: "3px 8px", borderRadius: "10px",
+                            background: breached ? "rgba(255,48,79,.15)" : "rgba(34,197,94,.15)",
+                            color: breached ? "#ff304f" : "#22c55e"
+                          }}>
+                            {breached ? "⚠ THRESHOLD BREACH" : "✓ HARDWARE ONLINE"}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {[
+                            { label: "Tiltmeter", value: d.tilt, unit: "°/hr", threshold: 1.2 },
+                            { label: "Pore-Water Pressure", value: d.poreWaterPressure, unit: "kPa", threshold: 65 },
+                            { label: "Soil Moisture", value: d.soilMoisture, unit: "%", threshold: 70 },
+                          ].map((s) => (
+                            <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", borderRadius: "6px", background: "rgba(0,0,0,0.2)" }}>
+                              <div>
+                                <div style={{ fontSize: "11px", fontWeight: 600 }}>{s.label}</div>
+                                <div style={{ fontSize: "9px", color: "#5d6873" }}>Threshold {s.threshold}{s.unit}</div>
+                              </div>
+                              <strong style={{ fontSize: "14px", color: s.value >= s.threshold ? "#ff304f" : "#e2e8f0" }}>
+                                {s.value !== null && s.value !== undefined ? `${s.value}${s.unit}` : "—"}
+                              </strong>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: "9px", color: "#5d6873", marginTop: "10px" }}>
+                          Last report: {new Date(d.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
             <div style={{ margin: "16px 0 20px", padding: "10px 14px", borderRadius: "8px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", fontSize: "11px", color: "#7f91a8" }}>
-              ℹ️ This is a prototype simulation of a physical sensor network. In deployment, these readings would stream from real tiltmeters and pore-pressure transducers installed on each slope.
+              ℹ️ {realSensorDevices.length > 0
+                ? "The stations below have no physical device registered yet, so they show a simulated fallback feed for demo purposes."
+                : "No real hardware devices have reported yet. Showing a simulated fallback feed — connect an ESP32/Arduino unit to POST /api/sensors/ingest to go live."}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>

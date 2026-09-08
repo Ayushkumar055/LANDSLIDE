@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://landslide-backend1.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 export const fetchHotspots = async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/hotspots`);
@@ -120,6 +120,42 @@ export const resolveSosReport = async (id) => {
     return await res.json();
   } catch (err) {
     console.error('Failed to resolve SOS report:', err);
+    return null;
+  }
+};
+
+// ================= REAL IOT SENSOR HARDWARE (ESP32/Arduino field units) =================
+// Latest reading per registered physical device
+export const fetchSensorNetwork = async () => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/sensors/latest`);
+    const data = await res.json();
+    return data.data || [];
+  } catch (err) {
+    console.error('Failed to fetch live sensor network:', err);
+    return [];
+  }
+};
+
+// Full reading history for one physical device
+export const fetchSensorHistory = async (deviceId) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/sensors/${deviceId}/history`);
+    const data = await res.json();
+    return data.data || [];
+  } catch (err) {
+    console.error('Failed to fetch sensor history:', err);
+    return [];
+  }
+};
+
+// ================= REAL SATELLITE IMAGERY ANALYSIS (Sentinel Hub NDVI) =================
+export const fetchSatelliteNdvi = async (lat, lng) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/satellite/ndvi?lat=${lat}&lng=${lng}`);
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch satellite NDVI analysis:', err);
     return null;
   }
 };

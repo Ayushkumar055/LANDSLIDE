@@ -1620,6 +1620,47 @@ app.post(
 );
 
 // ==========================================
+// SATELLITE VEGETATION ANALYSIS
+// ==========================================
+
+app.get("/api/satellite/ndvi", async (req, res) => {
+  try {
+    const { lat, lng } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        error: "lat and lng query parameters are required",
+      });
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+
+    if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid latitude or longitude",
+      });
+    }
+
+    return res.json({
+      success: false,
+      error:
+        "Satellite imagery provider is not configured yet. Sentinel Hub integration requires API credentials.",
+    });
+
+  } catch (error) {
+    console.error("Satellite NDVI error:", error);
+
+    res.status(500).json({
+      success: false,
+      error: "Failed to analyze satellite vegetation data",
+    });
+  }
+});
+
+// ==========================================
 // 404 HANDLER
 // ==========================================
 
