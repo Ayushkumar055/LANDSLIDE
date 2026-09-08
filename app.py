@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, HTMLResponse, JSONResponse
 
 load_dotenv()
@@ -14,6 +15,15 @@ load_dotenv()
 app = FastAPI(
     title="Landslide Detection & Hazard Assessment System",
     description="Real-time Landslide Scar Detection with Real-World Geo-Coordinates, Impact Area & Interactive Dashboard"
+)
+
+# Enable CORS for React Frontend (port 5173 / localhost)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 CLIENT_ID = os.getenv("SH_CLIENT_ID")
@@ -178,7 +188,6 @@ def get_visual_result(
     _, encoded = cv2.imencode(".jpg", bgr)
     return Response(content=encoded.tobytes(), media_type="image/jpeg")
 
-# 1. GeoJSON Export (QGIS & Google Earth ready)
 @app.get("/export/geojson")
 def export_geojson(
     min_lon: float = 76.10, min_lat: float = 11.45,
@@ -195,7 +204,6 @@ def export_geojson(
         nw = d["geo_bounds"]["north_west"]
         se = d["geo_bounds"]["south_east"]
         
-        # Polygon bounding coordinates [lon, lat]
         polygon_coords = [[
             [nw["lon"], nw["lat"]],
             [se["lon"], nw["lat"]],
@@ -228,7 +236,6 @@ def export_geojson(
     }
     return JSONResponse(content=geojson)
 
-# 2. Interactive Leaflet Web Dashboard
 @app.get("/dashboard", response_class=HTMLResponse)
 def get_dashboard():
     return """
@@ -270,21 +277,18 @@ def get_dashboard():
             </div>
         </div>
 
-       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script>
-            // 1. Initialize map centered directly on Wayanad at zoom level 13
             var map = L.map('map').setView([11.49, 76.15], 13);
-
-            var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 18,
                 attribution: 'Tiles &copy; Esri'
             }).addTo(map);
 
-            var labelsOverlay = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+            L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 18
             }).addTo(map);
 
-            // 2. Fetch GeoJSON Data
             fetch('/export/geojson')
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
@@ -292,12 +296,7 @@ def get_dashboard():
                     var listHtml = '';
 
                     var scarLayer = L.geoJSON(data, {
-                        style: {
-                            color: '#ff2d55',
-                            weight: 3,
-                            fillColor: '#ff2d55',
-                            fillOpacity: 0.45
-                        },
+                        style: { color: '#ff2d55', weight: 3, fillColor: '#ff2d55', fillOpacity: 0.45 },
                         onEachFeature: function(feature, layer) {
                             var p = feature.properties;
                             totalArea += p.area_hectares;
@@ -337,7 +336,6 @@ def get_dashboard():
                     console.error("GeoJSON error:", err);
                 });
 
-            // Handle map resize rendering
             setTimeout(function() {
                 map.invalidateSize();
             }, 300);

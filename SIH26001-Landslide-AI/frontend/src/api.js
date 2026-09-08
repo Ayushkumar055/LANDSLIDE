@@ -1,4 +1,5 @@
 const API_BASE_URL = 'http://localhost:5000/api';
+const FASTAPI_URL = 'http://127.0.0.1:8000';
 export const fetchHotspots = async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/hotspots`);
@@ -149,13 +150,27 @@ export const fetchSensorHistory = async (deviceId) => {
   }
 };
 
-// ================= REAL SATELLITE IMAGERY ANALYSIS (Sentinel Hub NDVI) =================
+// ================= REAL SATELLITE IMAGERY ANALYSIS (FastAPI Engine) =================
 export const fetchSatelliteNdvi = async (lat, lng) => {
   try {
-    const res = await fetch(`${API_BASE_URL}/satellite/ndvi?lat=${lat}&lng=${lng}`);
-    return await res.json();
+    const res = await fetch(`http://127.0.0.1:8000/detect/summary`);
+    if (!res.ok) throw new Error("FastAPI engine returned error");
+    const data = await res.json();
+
+    return {
+      success: true,
+      source: "Copernicus CDSE Sentinel-2 L2A",
+      scarsDetected: data.scars_detected,
+      totalDamageHectares: data.total_estimated_damage_hectares,
+      label: `Detected ${data.scars_detected} high-risk scar zone(s) with ${data.total_estimated_damage_hectares} ha area exposure.`,
+      viewInBrowser: "http://127.0.0.1:8000/dashboard",
+      detections: data.detections
+    };
   } catch (err) {
-    console.error('Failed to fetch satellite NDVI analysis:', err);
-    return null;
+    console.error('Failed to fetch live satellite data:', err);
+    return {
+      success: false,
+      error: "FastAPI Satellite engine (port 8000) not reachable. Please start 'python -m uvicorn app:app --reload'."
+    };
   }
 };

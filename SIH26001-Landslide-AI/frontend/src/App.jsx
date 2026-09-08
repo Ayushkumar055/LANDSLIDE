@@ -1069,43 +1069,90 @@ const blockedRoads = roads.filter(
                   </div>
                 </div>
 
-                {/* REAL SATELLITE IMAGERY ANALYSIS (Sentinel Hub NDVI) */}
-                <div
-                  style={{
-                    margin: "14px 16px",
-                    padding: "14px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(56,189,248,0.35)",
-                    background: "rgba(56,189,248,0.06)",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                    <strong style={{ fontSize: "13px", color: "#38bdf8" }}>🛰 Satellite Vegetation Analysis</strong>
-                    {satelliteLoading && <span style={{ fontSize: "10px", color: "#7f91a8" }}>Analyzing…</span>}
-                  </div>
+             {/* REAL SATELLITE IMAGERY ANALYSIS (Copernicus Sentinel-2) */}
+<div
+  style={{
+    margin: "14px 16px",
+    padding: "14px",
+    borderRadius: "10px",
+    border: "1px solid rgba(56,189,248,0.35)",
+    background: "rgba(56,189,248,0.06)",
+  }}
+>
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+    <strong style={{ fontSize: "13px", color: "#38bdf8" }}>🛰 Satellite Scar & Vegetation Analysis</strong>
+    {satelliteLoading ? (
+      <span style={{ fontSize: "10px", color: "#ffa502" }}>● Syncing CDSE...</span>
+    ) : satelliteData ? (
+      <span style={{ fontSize: "10px", color: "#22c55e", fontWeight: "bold" }}>● LIVE SATELLITE FEED</span>
+    ) : null}
+  </div>
 
-                  {satelliteData ? (
-                    <>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
-                        <span>NDVI (30-day mean, {satelliteData.source})</span>
-                        <strong>{satelliteData.ndviMean ?? "N/A"}</strong>
-                      </div>
-                      <p style={{ fontSize: "11px", color: "#94a3b8", margin: "4px 0 8px" }}>{satelliteData.label}</p>
-                      <a
-                        href={satelliteData.viewInBrowser}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ fontSize: "11px", color: "#38bdf8" }}
-                      >
-                        View live Sentinel-2 imagery →
-                      </a>
-                    </>
-                  ) : (
-                    <p style={{ fontSize: "11px", color: "#7f91a8" }}>
-                      {satelliteError || "No satellite data available for this location yet."}
-                    </p>
-                  )}
-                </div>
+  {satelliteLoading ? (
+    <p style={{ fontSize: "11px", color: "#7f91a8", margin: "4px 0" }}>
+      Downloading & running spectral change detection on Sentinel-2 bands...
+    </p>
+  ) : satelliteData && satelliteData.success ? (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+        <span>Active Scar Outlines:</span>
+        <strong style={{ color: "#ff304f" }}>{satelliteData.scarsDetected} Identified</strong>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+        <span>Estimated Impact Surface:</span>
+        <strong style={{ color: "#ffd400" }}>{satelliteData.totalDamageHectares} Hectares</strong>
+      </div>
+      <p style={{ fontSize: "11px", color: "#94a3b8", margin: "6px 0 10px", lineHeight: "1.4" }}>
+        {satelliteData.label}
+      </p>
+      <div style={{ display: "flex", gap: "10px" }}>
+        <a
+          href={satelliteData.viewInBrowser}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "inline-block",
+            fontSize: "11px",
+            color: "#0b111e",
+            background: "#38bdf8",
+            padding: "5px 10px",
+            borderRadius: "5px",
+            fontWeight: "bold",
+            textDecoration: "none",
+          }}
+        >
+          View Full GIS Overlay ↗
+        </a>
+        <a
+          href="http://127.0.0.1:8000/export/geojson"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "inline-block",
+            fontSize: "11px",
+            color: "#22c55e",
+            border: "1px solid rgba(34,197,94,0.4)",
+            padding: "5px 10px",
+            borderRadius: "5px",
+            fontWeight: "bold",
+            textDecoration: "none",
+          }}
+        >
+          GeoJSON Feed
+        </a>
+      </div>
+    </>
+  ) : (
+    <div>
+      <p style={{ fontSize: "11px", color: "#ff7083", margin: "4px 0 8px" }}>
+        ⚠ {satelliteError || "Satellite backend disconnected."}
+      </p>
+      <small style={{ fontSize: "10px", color: "#7f91a8" }}>
+        Make sure FastAPI is running on port 8000: <code>python -m uvicorn app:app --reload</code>
+      </small>
+    </div>
+  )}
+</div>
 
                 {/* MACHINE LEARNING PREDICTION */}
                 <div
