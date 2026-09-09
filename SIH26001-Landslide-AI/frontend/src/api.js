@@ -1,5 +1,5 @@
 const API_BASE_URL = 'http://localhost:5000/api';
-const FASTAPI_URL = 'http://127.0.0.1:8000';
+const FASTAPI_URL = 'https://landslide-satellite-ai.onrender.com';
 export const fetchHotspots = async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/hotspots`);
@@ -153,7 +153,7 @@ export const fetchSensorHistory = async (deviceId) => {
 // ================= REAL SATELLITE IMAGERY ANALYSIS (FastAPI Engine) =================
 export const fetchSatelliteNdvi = async (lat, lng) => {
   try {
-    const res = await fetch(`http://127.0.0.1:8000/detect/summary`);
+    const res = await fetch(`${FASTAPI_URL}/detect/summary`);
     if (!res.ok) throw new Error("FastAPI engine returned error");
     const data = await res.json();
 
@@ -163,14 +163,14 @@ export const fetchSatelliteNdvi = async (lat, lng) => {
       scarsDetected: data.scars_detected,
       totalDamageHectares: data.total_estimated_damage_hectares,
       label: `Detected ${data.scars_detected} high-risk scar zone(s) with ${data.total_estimated_damage_hectares} ha area exposure.`,
-      viewInBrowser: "http://127.0.0.1:8000/dashboard",
+      viewInBrowser: `${FASTAPI_URL}/dashboard`,
       detections: data.detections
     };
   } catch (err) {
     console.error('Failed to fetch live satellite data:', err);
     return {
       success: false,
-      error: "FastAPI Satellite engine (port 8000) not reachable. Please start 'python -m uvicorn app:app --reload'."
+      error: "Satellite service waking up or connecting. Please refresh in a moment."
     };
   }
 };
