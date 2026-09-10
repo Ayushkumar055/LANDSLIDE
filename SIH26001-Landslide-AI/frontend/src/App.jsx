@@ -162,7 +162,7 @@ export default function App() {
   const [showEvacRoute, setShowEvacRoute] = useState(true);
 
  // Road Connectivity Monitoring
-  const [roads, setRoads] = useState([]);
+const [activeTab, setActiveTab] = useState('monitoring')
 
   // Live Weather (Open-Meteo)
   const [liveWeather, setLiveWeather] = useState(null);
@@ -1474,32 +1474,33 @@ const blockedRoads = roads.filter(
           </>
         )}
 
-        {/* ROAD CONNECTIVITY MONITORING */}
-<section
-  className="panel"
-  style={{
-    marginTop: "16px",
-    padding: "20px",
-  }}
->
-  <div
+  {/* ROAD CONNECTIVITY MONITORING */}
+{activeTab === 'monitoring' && (
+  <section
+    className="panel"
     style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: "18px",
-      flexWrap: "wrap",
-      gap: "12px",
+      marginTop: "16px",
+      padding: "20px",
     }}
   >
-    <div>
-      <h3
-        style={{
-          fontSize: "18px",
-          color: "#38bdf8",
-          margin: 0,
-        }}
-      >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: "18px",
+        flexWrap: "wrap",
+        gap: "12px",
+      }}
+    >
+      <div>
+        <h3
+          style={{
+            fontSize: "18px",
+            color: "#38bdf8",
+            margin: 0,
+          }}
+        >
         🛣️ Road Connectivity Monitoring
       </h3>
 
