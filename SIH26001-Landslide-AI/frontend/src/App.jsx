@@ -119,10 +119,20 @@ function getRiskMessage(level, t) {
 
 function MapController({ location }) {
   const map = useMap();
+
+  useEffect(() => {
+    // Force recalculate Leaflet dimensions to prevent initial dark canvas
+    const timer = setTimeout(() => {
+      if (map) map.invalidateSize();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [map]);
+
   useEffect(() => {
     if (!location || !location.lat || !location.lng) return;
     map.flyTo([location.lat, location.lng], 8, { duration: 1.2 });
   }, [location, map]);
+
   return null;
 }
 
@@ -869,45 +879,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Dynamic Offline / Low-Network Floating Status Pill */}
-      <div
-        style={{
-          position: "fixed",
-          top: "14px",
-          right: "220px",
-          zIndex: 2000,
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "6px 12px",
-          borderRadius: "20px",
-          fontSize: "11px",
-          fontWeight: "bold",
-          border: isOnline ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,48,79,0.5)",
-          background: isOnline ? "rgba(11,29,19,0.85)" : "rgba(38,10,14,0.9)",
-          color: isOnline ? "#22c55e" : "#ff7083",
-          backdropFilter: "blur(6px)",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
-        }}
-      >
-        <span
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            background: isOnline ? "#22c55e" : "#ff304f",
-            boxShadow: isOnline ? "0 0 8px #22c55e" : "0 0 8px #ff304f"
-          }}
-        />
-        {isOnline
-          ? isSyncingOffline
-            ? "Syncing Queued Reports..."
-            : offlineQueueCount > 0
-            ? `Online (${offlineQueueCount} queued sync)`
-            : "Network Online"
-          : `Offline Mode (${offlineQueueCount} Queued)`}
-      </div>
-
       {mobileSidebarOpen && (
         <div
           className="sidebar-backdrop"
@@ -1045,22 +1016,22 @@ export default function App() {
               </h2>
             </div>
           </div>
-          <div className="top-actions">
-            <div className="top-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {/* Network Status Badge */}
+
+          <div className="top-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {/* Inline Network Status Badge */}
             <div
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "6px",
-                padding: "5px 10px",
+                padding: "6px 12px",
                 borderRadius: "20px",
                 fontSize: "11px",
                 fontWeight: "bold",
                 whiteSpace: "nowrap",
                 border: isOnline ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,48,79,0.5)",
                 background: isOnline ? "rgba(11,29,19,0.85)" : "rgba(38,10,14,0.9)",
-                color: isOnline ? "#22c55e" : "#ff7083"
+                color: isOnline ? "#22c55e" : "#ff7083",
               }}
             >
               <span
@@ -1081,23 +1052,6 @@ export default function App() {
                 : `Offline (${offlineQueueCount})`}
             </div>
 
-            <select
-              value={i18n.language}
-              onChange={(e) => i18n.changeLanguage(e.target.value)}
-              style={{
-                background: "#1a1f2e",
-                color: "white",
-                border: "1px solid rgba(255,255,255,0.15)",
-                borderRadius: "6px",
-                padding: "6px 10px",
-                fontSize: "12px",
-                cursor: "pointer",
-                outline: "none"
-              }}
-            >
-              <option value="en">English</option>
-              <option value="hi">हिंदी</option>
-            </select>
             <select
               value={i18n.language}
               onChange={(e) => i18n.changeLanguage(e.target.value)}
