@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/api'; // Testing ke liye localhost; production deploy ke baad 'https://landslide-backend1.onrender.com/api' rakh lena
+const API_BASE_URL = 'https://landslide-backend1.onrender.com/api';
 const FASTAPI_URL = 'https://landslide-satellite-ai.onrender.com';
 
 export const fetchHotspots = async () => {
