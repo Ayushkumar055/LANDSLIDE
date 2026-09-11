@@ -2140,16 +2140,25 @@ export default function App() {
 
               <div style={{ display: "inline-block", padding: "16px", background: "#fff", borderRadius: "14px", marginBottom: "20px" }}>
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent("https://landslideriskmonitoring.netlify.app/")}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
+                    typeof window !== "undefined" ? window.location.origin : "https://vercel.app"
+                  )}`}
                   alt="Scan to download LandslideAI app"
                   width={240}
                   height={240}
-                  style={{ display: "block" }}
+                  style={{ display: "block", width: "240px", height: "240px" }}
+                  onError={(e) => {
+                    const currentUrl = encodeURIComponent(
+                      typeof window !== "undefined" ? window.location.origin : "https://vercel.app"
+                    );
+                    e.target.onerror = null;
+                    e.target.src = `https://quickchart.io/qr?text=${currentUrl}&size=240`;
+                  }}
                 />
               </div>
 
               <p style={{ color: "#42d5ac", fontSize: "12px", fontWeight: "bold", marginBottom: "20px" }}>
-                landslideriskmonitoring.netlify.app
+                {typeof window !== "undefined" ? window.location.host : "landslide-ai.vercel.app"}
               </p>
 
               {isInstalled ? (
