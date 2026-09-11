@@ -32,6 +32,7 @@ import {
   getOfflineReports,
   removeOfflineReport,
 } from "./offlineSync";
+import EmergencyDialGrid from "./EmergencyDialGrid";
 
 const defaultLocations = [
   { name: "Aizawl", state: "Mizoram", lat: 23.7271, lng: 92.7176, rainfall: 142, slope: 43, soil: "High", elevation: 1132 },
@@ -121,7 +122,6 @@ function MapController({ location }) {
   const map = useMap();
 
   useEffect(() => {
-    // Force recalculate Leaflet dimensions to prevent initial dark canvas
     const timer = setTimeout(() => {
       if (map) map.invalidateSize();
     }, 250);
@@ -147,6 +147,9 @@ export default function App() {
   );
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [isSyncingOffline, setIsSyncingOffline] = useState(false);
+
+  // Emergency Dial Modal State
+  const [showDialModal, setShowDialModal] = useState(false);
 
   function handleNavClick(tab) {
     setCurrentTab(tab);
@@ -301,7 +304,6 @@ export default function App() {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Initial check on load
     getOfflineReports().then((items) => {
       setOfflineQueueCount(items.length);
       if (navigator.onLine && items.length > 0) {
@@ -572,7 +574,6 @@ export default function App() {
 
     setSosSubmitting(true);
 
-    // If offline, store locally in IndexedDB
     if (!navigator.onLine) {
       try {
         await saveOfflineReport({
@@ -2221,19 +2222,60 @@ export default function App() {
         </footer>
       </main>
 
-      {/* FLOATING SOS BUTTON */}
-      <button
-        onClick={() => setShowSosModal(true)}
-        title="Report a ground condition (road crack, tilt, muddy water)"
-        style={{
-          position: "fixed", bottom: "26px", right: "26px", zIndex: 1500,
-          width: "58px", height: "58px", borderRadius: "50%", border: "none",
-          background: "#f59e0b", color: "#1a1204", fontSize: "22px", fontWeight: "bold",
-          boxShadow: "0 6px 20px rgba(245,158,11,0.45)", cursor: "pointer"
-        }}
-      >
-        🚩
-      </button>
+      {/* FLOATING ACTION DOCK: QUICK DIAL + SOS */}
+      <div style={{ position: "fixed", bottom: "26px", right: "26px", zIndex: 1500, display: "flex", gap: "12px", alignItems: "center" }}>
+        {/* Floating Quick Dial Button */}
+        <button
+          onClick={() => setShowDialModal(true)}
+          title="Emergency Quick Dial (NDRF / SDMA / DEOC)"
+          style={{
+            width: "56px",
+            height: "56px",
+            borderRadius: "50%",
+            border: "none",
+            background: "#ff304f",
+            color: "#fff",
+            fontSize: "22px",
+            fontWeight: "bold",
+            boxShadow: "0 6px 20px rgba(255,48,79,0.45)",
+            cursor: "pointer",
+            display: "grid",
+            placeItems: "center"
+          }}
+        >
+          📞
+        </button>
+
+        {/* Floating SOS Button */}
+        <button
+          onClick={() => setShowSosModal(true)}
+          title="Report a ground condition (road crack, tilt, muddy water)"
+          style={{
+            width: "58px",
+            height: "58px",
+            borderRadius: "50%",
+            border: "none",
+            background: "#f59e0b",
+            color: "#1a1204",
+            fontSize: "22px",
+            fontWeight: "bold",
+            boxShadow: "0 6px 20px rgba(245,158,11,0.45)",
+            cursor: "pointer",
+            display: "grid",
+            placeItems: "center"
+          }}
+        >
+          🚩
+        </button>
+      </div>
+
+      {/* MODAL: EMERGENCY QUICK DIAL */}
+      {showDialModal && (
+        <EmergencyDialGrid
+          selectedState={selected.state}
+          onClose={() => setShowDialModal(false)}
+        />
+      )}
 
       {/* MODAL: CITIZEN SOS / COMMUNITY REPORT (OFFLINE RESILIENT) */}
       {showSosModal && (
