@@ -27,6 +27,11 @@ import {
 
 import { exportAlertsToCSV, printIncidentReport } from "./exportUtils";
 import { playEmergencySiren, speakEmergencyAdvisory } from "./audioUtils";
+import {
+  saveOfflineReport,
+  getOfflineReports,
+  removeOfflineReport,
+} from "./offlineSync";
 
 const defaultLocations = [
   { name: "Aizawl", state: "Mizoram", lat: 23.7271, lng: 92.7176, rainfall: 142, slope: 43, soil: "High", elevation: 1132 },
@@ -126,6 +131,13 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Network Online/Offline State
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
+
   function handleNavClick(tab) {
     setCurrentTab(tab);
     setMobileSidebarOpen(false);
@@ -223,6 +235,75 @@ export default function App() {
   const [mlPrediction, setMlPrediction] = useState(null);
   const [mlLoading, setMlLoading] = useState(false);
   const [mlError, setMlError] = useState("");
+
+  // Sync offline queued SOS reports
+  const syncOfflineQueue = async () => {
+    if (!navigator.onLine) return;
+    try {
+      const queued = await getOfflineReports();
+      setOfflineQueueCount(queued.length);
+      if (queued.length === 0) return;
+
+      setIsSyncingOffline(true);
+      for (const item of queued) {
+        try {
+          const formData = new FormData();
+          formData.append("reporterName", item.reporterName || "Anonymous Citizen (Offline Sync)");
+          formData.append("location", item.location);
+          formData.append("lat", item.lat);
+          formData.append("lng", item.lng);
+          formData.append("issueType", item.issueType);
+          formData.append("description", `[OFFLINE SYNCED] ${item.description}`);
+
+          if (item.mediaFile) {
+            formData.append("media", item.mediaFile);
+          }
+
+          const response = await submitSosReport(formData);
+          if (response && response.success) {
+            await removeOfflineReport(item.id);
+            setSosReports((current) => [response.report, ...current]);
+          }
+        } catch (syncErr) {
+          console.warn("Could not sync item id", item.id, syncErr);
+          break;
+        }
+      }
+
+      const remaining = await getOfflineReports();
+      setOfflineQueueCount(remaining.length);
+    } catch (err) {
+      console.error("Offline sync error:", err);
+    } finally {
+      setIsSyncingOffline(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncOfflineQueue();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Initial check on load
+    getOfflineReports().then((items) => {
+      setOfflineQueueCount(items.length);
+      if (navigator.onLine && items.length > 0) {
+        syncOfflineQueue();
+      }
+    });
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const initApp = async () => {
@@ -467,7 +548,6 @@ export default function App() {
     }
   }
 
-  // Handle Photo/Video selection
   const handleMediaChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -475,12 +555,45 @@ export default function App() {
     setSosMediaPreview(URL.createObjectURL(file));
   };
 
-  // Submit SOS Report with multipart FormData
+  // Submit SOS Report with Offline Network Detection
   async function handleSosSubmit(e) {
     e.preventDefault();
     if (!sosForm.description.trim()) return;
 
     setSosSubmitting(true);
+
+    // If offline, store locally in IndexedDB
+    if (!navigator.onLine) {
+      try {
+        await saveOfflineReport({
+          reporterName: sosForm.reporterName || "Anonymous Citizen",
+          location: `${selected.name}, ${selected.state}`,
+          lat: selected.lat,
+          lng: selected.lng,
+          issueType: sosForm.issueType,
+          description: sosForm.description,
+          mediaFile: sosMediaFile || null,
+        });
+
+        const pending = await getOfflineReports();
+        setOfflineQueueCount(pending.length);
+
+        setSosSubmitted(true);
+        setSosMediaFile(null);
+        setSosMediaPreview(null);
+        setSosForm({ reporterName: "", issueType: "Road Crack", description: "" });
+        setTimeout(() => {
+          setSosSubmitted(false);
+          setShowSosModal(false);
+        }, 2200);
+      } catch (storeErr) {
+        alert("Failed to save report locally: " + storeErr.message);
+      } finally {
+        setSosSubmitting(false);
+      }
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append("reporterName", sosForm.reporterName || "Anonymous Citizen");
@@ -563,14 +676,14 @@ export default function App() {
             playEmergencySiren();
           }
           if (typeof speakEmergencyAdvisory === "function") {
-            speakEmergencyAdvisory(selected.name, "CRITICAL", result.riskScore);
+            speakEmergencyAdvisory(selected.name, "CRITICAL", result.riskScore, i18n.language);
           }
         }
       }
     }, 1800);
 
     return () => clearInterval(interval);
-  }, [simulationRunning, selected, simulatedRainfall, liveRiskScore]);
+  }, [simulationRunning, selected, simulatedRainfall, liveRiskScore, i18n.language]);
 
   const criticalCount = locationsList.filter((l) => l.level === "CRITICAL").length;
   const highCount = locationsList.filter((l) => l.level === "HIGH").length;
@@ -756,6 +869,45 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* Dynamic Offline / Low-Network Floating Status Pill */}
+      <div
+        style={{
+          position: "fixed",
+          top: "14px",
+          right: "220px",
+          zIndex: 2000,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "6px 12px",
+          borderRadius: "20px",
+          fontSize: "11px",
+          fontWeight: "bold",
+          border: isOnline ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,48,79,0.5)",
+          background: isOnline ? "rgba(11,29,19,0.85)" : "rgba(38,10,14,0.9)",
+          color: isOnline ? "#22c55e" : "#ff7083",
+          backdropFilter: "blur(6px)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+        }}
+      >
+        <span
+          style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            background: isOnline ? "#22c55e" : "#ff304f",
+            boxShadow: isOnline ? "0 0 8px #22c55e" : "0 0 8px #ff304f"
+          }}
+        />
+        {isOnline
+          ? isSyncingOffline
+            ? "Syncing Queued Reports..."
+            : offlineQueueCount > 0
+            ? `Online (${offlineQueueCount} queued sync)`
+            : "Network Online"
+          : `Offline Mode (${offlineQueueCount} Queued)`}
+      </div>
+
       {mobileSidebarOpen && (
         <div
           className="sidebar-backdrop"
@@ -2068,7 +2220,7 @@ export default function App() {
         🚩
       </button>
 
-      {/* MODAL: CITIZEN SOS / COMMUNITY REPORT */}
+      {/* MODAL: CITIZEN SOS / COMMUNITY REPORT (OFFLINE RESILIENT) */}
       {showSosModal && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex",
@@ -2096,13 +2248,29 @@ export default function App() {
               </button>
             </div>
 
+            {!isOnline && (
+              <div style={{
+                padding: "8px 12px",
+                borderRadius: "6px",
+                background: "rgba(255,48,79,0.15)",
+                border: "1px solid #ff304f",
+                color: "#ff7083",
+                fontSize: "11px",
+                marginBottom: "12px"
+              }}>
+                📶 <strong>No Network Connection:</strong> Your report will be stored safely on your device and automatically synced once signal is restored.
+              </div>
+            )}
+
             <p style={{ fontSize: "12px", color: "#7f91a8", marginBottom: "16px" }}>
               Reporting near <strong style={{ color: "#e2e8f0" }}>{selected.name}, {selected.state}</strong>. Your geo-tagged evidence validates AI risk predictions.
             </p>
 
             {sosSubmitted ? (
               <div style={{ padding: "16px", borderRadius: "8px", background: "rgba(34,197,94,.1)", border: "1px solid rgba(34,197,94,.35)", color: "#22c55e", fontSize: "13px", textAlign: "center" }}>
-                ✓ Report and ground media received. Thank you for helping keep your community safe!
+                {isOnline
+                  ? "✓ Report and ground media received. Thank you for helping keep your community safe!"
+                  : "✓ Report saved offline on your device! It will auto-upload when internet connection resumes."}
               </div>
             ) : (
               <form onSubmit={handleSosSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -2249,7 +2417,7 @@ export default function App() {
                     disabled={sosSubmitting}
                     style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "#f59e0b", border: "none", color: "#1a1204", fontWeight: "bold", cursor: sosSubmitting ? "wait" : "pointer" }}
                   >
-                    {sosSubmitting ? "Uploading Media..." : "Submit Report"}
+                    {sosSubmitting ? (isOnline ? "Uploading Media..." : "Saving Offline...") : isOnline ? "Submit Report" : "Save Report Offline"}
                   </button>
                 </div>
               </form>
