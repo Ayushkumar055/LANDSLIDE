@@ -1046,6 +1046,58 @@ export default function App() {
             </div>
           </div>
           <div className="top-actions">
+            <div className="top-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {/* Network Status Badge */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "5px 10px",
+                borderRadius: "20px",
+                fontSize: "11px",
+                fontWeight: "bold",
+                whiteSpace: "nowrap",
+                border: isOnline ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,48,79,0.5)",
+                background: isOnline ? "rgba(11,29,19,0.85)" : "rgba(38,10,14,0.9)",
+                color: isOnline ? "#22c55e" : "#ff7083"
+              }}
+            >
+              <span
+                style={{
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  background: isOnline ? "#22c55e" : "#ff304f",
+                  boxShadow: isOnline ? "0 0 6px #22c55e" : "0 0 6px #ff304f"
+                }}
+              />
+              {isOnline
+                ? isSyncingOffline
+                  ? "Syncing..."
+                  : offlineQueueCount > 0
+                  ? `Online (${offlineQueueCount})`
+                  : "Network Online"
+                : `Offline (${offlineQueueCount})`}
+            </div>
+
+            <select
+              value={i18n.language}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+              style={{
+                background: "#1a1f2e",
+                color: "white",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: "6px",
+                padding: "6px 10px",
+                fontSize: "12px",
+                cursor: "pointer",
+                outline: "none"
+              }}
+            >
+              <option value="en">English</option>
+              <option value="hi">हिंदी</option>
+            </select>
             <select
               value={i18n.language}
               onChange={(e) => i18n.changeLanguage(e.target.value)}
