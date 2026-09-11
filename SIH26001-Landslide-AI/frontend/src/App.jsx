@@ -80,7 +80,6 @@ function getRiskColor(risk) {
   return "#22c55e";
 }
 
-// Haversine distance between two lat/lng points, in kilometers
 function getDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -94,7 +93,6 @@ function getDistanceKm(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-// Generates a realistic-looking virtual sensor network for a hotspot
 function generateSensors(location) {
   const tiltBase = (location.slope / 60) * 1.8;
   const poreBase = 20 + (location.rainfall / 200) * 60;
@@ -126,28 +124,23 @@ function MapController({ location }) {
 export default function App() {
   const { t, i18n } = useTranslation();
   const [currentTab, setCurrentTab] = useState("dashboard");
-
-  // Mobile: off-canvas sidebar toggle
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   function handleNavClick(tab) {
     setCurrentTab(tab);
     setMobileSidebarOpen(false);
   }
+
   const [locationsList, setLocationsList] = useState(defaultLocations.map(calculateRisk));
   const [selected, setSelected] = useState(defaultLocations.map(calculateRisk)[0]);
 
-  // IoT Sensor Simulation Network
   const [sensorNetwork, setSensorNetwork] = useState(() =>
     defaultLocations.map((loc) => ({ name: loc.name, state: loc.state, sensors: generateSensors(loc) }))
   );
   const [lastSensorSync, setLastSensorSync] = useState(new Date());
-
-  // Real IoT hardware devices (ESP32/Arduino field units posting to /api/sensors/ingest)
   const [realSensorDevices, setRealSensorDevices] = useState([]);
   const [realSensorsLoading, setRealSensorsLoading] = useState(false);
 
-  // Real satellite NDVI / vegetation analysis (Sentinel Hub)
   const [satelliteData, setSatelliteData] = useState(null);
   const [satelliteLoading, setSatelliteLoading] = useState(false);
   const [satelliteError, setSatelliteError] = useState("");
@@ -157,35 +150,35 @@ export default function App() {
   const [warningIssued, setWarningIssued] = useState(false);
   const [backendOnline, setBackendOnline] = useState(false);
 
-  // Safe Shelters & Evacuation Layer
   const [shelters, setShelters] = useState([]);
   const [showEvacRoute, setShowEvacRoute] = useState(true);
 
- // Road Connectivity Monitoring
-const [activeTab, setActiveTab] = useState('monitoring')
+  // Roads state
+  const [roads, setRoads] = useState([]);
+  const [activeTab, setActiveTab] = useState("monitoring");
 
-  // Live Weather (Open-Meteo)
   const [liveWeather, setLiveWeather] = useState(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
 
-  // Citizen SOS / Community Reports
+  // Citizen SOS / Community Reports States
   const [sosReports, setSosReports] = useState([]);
   const [showSosModal, setShowSosModal] = useState(false);
   const [sosSubmitting, setSosSubmitting] = useState(false);
   const [sosSubmitted, setSosSubmitted] = useState(false);
   const [sosForm, setSosForm] = useState({ reporterName: "", issueType: "Road Crack", description: "" });
+  const [sosMediaFile, setSosMediaFile] = useState(null);
+  const [sosMediaPreview, setSosMediaPreview] = useState(null);
+
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceError, setVoiceError] = useState("");
 
-  // PWA: Install prompt + Push/Local Notifications
   const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "unsupported"
   );
 
-  // Role-Based Access State (Citizen / District Officer / NDRF)
   const [userRole, setUserRole] = useState(() => {
     try {
       return localStorage.getItem("landslideai_role") || null;
@@ -206,9 +199,8 @@ const [activeTab, setActiveTab] = useState('monitoring')
   const [loginForm, setLoginForm] = useState({ officerId: "", password: "" });
   const [loginError, setLoginError] = useState("");
   const isAuthenticated = userRole === "district_officer" || userRole === "ndrf";
-  const canManage = isAuthenticated; // officers & NDRF can issue warnings / resolve SOS reports
+  const canManage = isAuthenticated;
 
-  // Simulation States
   const [simulationRunning, setSimulationRunning] = useState(false);
   const [simulatedRainfall, setSimulatedRainfall] = useState(selected.rainfall);
   const [liveRiskScore, setLiveRiskScore] = useState(selected.risk);
@@ -222,7 +214,6 @@ const [activeTab, setActiveTab] = useState('monitoring')
     selected.risk,
   ]);
 
-  // Machine Learning prediction states
   const [mlInputs, setMlInputs] = useState({
     rainfall: selected.rainfall || 0,
     slope: selected.slope || 0,
@@ -253,7 +244,6 @@ const [activeTab, setActiveTab] = useState('monitoring')
         }
 
         const backendRoads = await fetchRoads();
-
         if (backendRoads && backendRoads.length > 0) {
           setRoads(backendRoads);
         }
@@ -280,11 +270,8 @@ const [activeTab, setActiveTab] = useState('monitoring')
     } else if (userRole === "ndrf") {
       setAdminUser({ name: "NDRF Unit (Session)", role: "NDRF Response Unit" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Real hardware sensor polling — pulls live readings posted by ESP32/Arduino
-  // field units to POST /api/sensors/ingest. Runs only while Sensor Network tab is open.
   useEffect(() => {
     if (currentTab !== "sensors") return;
 
@@ -301,9 +288,6 @@ const [activeTab, setActiveTab] = useState('monitoring')
     return () => clearInterval(interval);
   }, [currentTab]);
 
-  // Simulated sensor jitter — only used as a visual fallback for hotspots that
-  // don't (yet) have a real physical device registered, so the dashboard still
-  // shows a live-feeling network during a demo without hardware connected.
   useEffect(() => {
     if (currentTab !== "sensors") return;
 
@@ -314,7 +298,7 @@ const [activeTab, setActiveTab] = useState('monitoring')
           sensors: station.sensors.map((s) => {
             const jitter = (Math.random() - 0.45) * (s.threshold * 0.08);
             const nextValue = Math.max(0, Math.round((s.value + jitter) * 100) / 100);
-            const dropOffline = Math.random() < 0.03; // occasional simulated connectivity blip
+            const dropOffline = Math.random() < 0.03;
             return {
               ...s,
               value: nextValue,
@@ -328,7 +312,6 @@ const [activeTab, setActiveTab] = useState('monitoring')
     return () => clearInterval(interval);
   }, [currentTab]);
 
-  // Real satellite NDVI analysis — refetches whenever the selected hotspot changes
   useEffect(() => {
     if (!selected?.lat || !selected?.lng) return;
 
@@ -358,12 +341,10 @@ const [activeTab, setActiveTab] = useState('monitoring')
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     setVoiceSupported(!!SpeechRecognition);
 
-    // Register service worker for offline support + notification bridge
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
 
-    // Capture the browser's native "install this app" prompt so we can trigger it ourselves
     const handleInstallPrompt = (e) => {
       e.preventDefault();
       setInstallPromptEvent(e);
@@ -446,15 +427,12 @@ const [activeTab, setActiveTab] = useState('monitoring')
     if (!canManage && ["monitoring", "analytics", "history", "sensors"].includes(currentTab)) {
       setCurrentTab("dashboard");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage]);
 
-  // Reset live weather reading whenever the selected monitoring location changes
   useEffect(() => {
     setLiveWeather(null);
   }, [selected]);
 
-  // Nearest safe shelter to the currently selected location
   const nearestShelter = useMemo(() => {
     if (!shelters.length || !selected) return null;
     let closest = null;
@@ -489,31 +467,53 @@ const [activeTab, setActiveTab] = useState('monitoring')
     }
   }
 
+  // Handle Photo/Video selection
+  const handleMediaChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSosMediaFile(file);
+    setSosMediaPreview(URL.createObjectURL(file));
+  };
+
+  // Submit SOS Report with multipart FormData
   async function handleSosSubmit(e) {
     e.preventDefault();
     if (!sosForm.description.trim()) return;
 
     setSosSubmitting(true);
-    const payload = {
-      reporterName: sosForm.reporterName || "Anonymous Citizen",
-      location: `${selected.name}, ${selected.state}`,
-      lat: selected.lat,
-      lng: selected.lng,
-      issueType: sosForm.issueType,
-      description: sosForm.description,
-    };
+    try {
+      const formData = new FormData();
+      formData.append("reporterName", sosForm.reporterName || "Anonymous Citizen");
+      formData.append("location", `${selected.name}, ${selected.state}`);
+      formData.append("lat", selected.lat);
+      formData.append("lng", selected.lng);
+      formData.append("issueType", sosForm.issueType);
+      formData.append("description", sosForm.description);
 
-    const response = await submitSosReport(payload);
-    setSosSubmitting(false);
+      if (sosMediaFile) {
+        formData.append("media", sosMediaFile);
+      }
 
-    if (response && response.success) {
-      setSosReports((current) => [response.report, ...current]);
-      setSosSubmitted(true);
-      setSosForm({ reporterName: "", issueType: "Road Crack", description: "" });
-      setTimeout(() => {
-        setSosSubmitted(false);
-        setShowSosModal(false);
-      }, 1800);
+      const response = await submitSosReport(formData);
+
+      if (response && response.success) {
+        setSosReports((current) => [response.report, ...current]);
+        setSosSubmitted(true);
+        setSosMediaFile(null);
+        setSosMediaPreview(null);
+        setSosForm({ reporterName: "", issueType: "Road Crack", description: "" });
+        setTimeout(() => {
+          setSosSubmitted(false);
+          setShowSosModal(false);
+        }, 1800);
+      } else {
+        alert("Submission failed: " + (response?.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("SOS Submit error:", err);
+      alert("Submission error: " + err.message);
+    } finally {
+      setSosSubmitting(false);
     }
   }
 
@@ -540,7 +540,6 @@ const [activeTab, setActiveTab] = useState('monitoring')
     ]);
   }, [selected]);
 
-  // Simulation Engine with Auto Audio Alert
   useEffect(() => {
     if (!simulationRunning) return;
 
@@ -559,7 +558,6 @@ const [activeTab, setActiveTab] = useState('monitoring')
         setLiveRiskLevel(result.riskLevel);
         setRiskHistory((prev) => [...prev.slice(-9), result.riskScore]);
 
-        // Auto trigger audio if crosses Critical (80)
         if (result.riskScore >= 80 && liveRiskScore < 80) {
           if (typeof playEmergencySiren === "function") {
             playEmergencySiren();
@@ -578,14 +576,8 @@ const [activeTab, setActiveTab] = useState('monitoring')
   const highCount = locationsList.filter((l) => l.level === "HIGH").length;
 
   const openRoads = roads.filter((road) => road.status === "OPEN").length;
-
-const restrictedRoads = roads.filter(
-  (road) => road.status === "RESTRICTED"
-).length;
-
-const blockedRoads = roads.filter(
-  (road) => road.status === "BLOCKED"
-).length;
+  const restrictedRoads = roads.filter((road) => road.status === "RESTRICTED").length;
+  const blockedRoads = roads.filter((road) => road.status === "BLOCKED").length;
 
   function getMarkerValue(location) {
     if (mapMode === "rainfall") return location.rainfall;
@@ -645,8 +637,7 @@ const blockedRoads = roads.filter(
           rawProbability <= 1 ? rawProbability * 100 : rawProbability
         );
 
-        const backendLevel =
-          result.riskLevel ?? result.risk_level ?? result.level;
+        const backendLevel = result.riskLevel ?? result.risk_level ?? result.level;
 
         let calculatedLevel = "LOW";
         if (normalizedScore >= 80) calculatedLevel = "CRITICAL";
@@ -667,8 +658,7 @@ const blockedRoads = roads.filter(
     } catch (error) {
       console.error("ML prediction failed:", error);
       setMlError(
-        error.message ||
-          "ML prediction failed. Please check whether the backend is running."
+        error.message || "ML prediction failed. Please check whether the backend is running."
       );
     } finally {
       setMlLoading(false);
@@ -685,17 +675,16 @@ const blockedRoads = roads.filter(
       title: `Landslide Risk Alert - ${liveRiskLevel}`,
     };
 
-    // Play Siren & Voice Broadcast
     if (typeof playEmergencySiren === "function") {
       playEmergencySiren();
     }
     if (typeof speakEmergencyAdvisory === "function") {
-  speakEmergencyAdvisory(
-  selected.name,
-  liveRiskLevel,
-  liveRiskScore,
-  i18n.language
-);
+      speakEmergencyAdvisory(
+        selected.name,
+        liveRiskLevel,
+        liveRiskScore,
+        i18n.language
+      );
     }
 
     const response = await dispatchAlert(alertData);
@@ -713,7 +702,6 @@ const blockedRoads = roads.filter(
     setTimeout(() => setWarningIssued(false), 2500);
   }
 
-  // Handle Login Action
   function handleLogin(e) {
     e.preventDefault();
     if (!loginForm.officerId || !loginForm.password) {
@@ -768,7 +756,6 @@ const blockedRoads = roads.filter(
 
   return (
     <div className="app">
-      {/* Mobile backdrop overlay — closes sidebar when tapped outside */}
       {mobileSidebarOpen && (
         <div
           className="sidebar-backdrop"
@@ -778,15 +765,15 @@ const blockedRoads = roads.filter(
 
       {/* SIDEBAR */}
       <aside
-  className="sidebar"
-  style={{
-    height: "100vh",
-    overflowY: "auto",
-    overflowX: "hidden",
-    scrollbarWidth: "thin",
-    scrollbarColor: "#38bdf8 transparent"
-  }}
->
+        className="sidebar"
+        style={{
+          height: "100vh",
+          overflowY: "auto",
+          overflowX: "hidden",
+          scrollbarWidth: "thin",
+          scrollbarColor: "#38bdf8 transparent"
+        }}
+      >
         <div className="brand">
           <div className="brand-icon">⛰</div>
           <div>
@@ -855,7 +842,6 @@ const blockedRoads = roads.filter(
             <div className="accuracy"><span>Model confidence</span><strong>Prototype</strong></div>
           </div>
 
-          {/* ================= USER / ROLE BOX ================= */}
           <div
             className="user-box"
             onClick={() => {
@@ -882,7 +868,6 @@ const blockedRoads = roads.filter(
             </div>
             <span style={{ fontSize: "12px", color: "#38bdf8" }}>⇄</span>
           </div>
-
         </div>
       </aside>
 
@@ -909,7 +894,6 @@ const blockedRoads = roads.filter(
             </div>
           </div>
           <div className="top-actions">
-            {/* Language Selector */}
             <select
               value={i18n.language}
               onChange={(e) => i18n.changeLanguage(e.target.value)}
@@ -1069,90 +1053,90 @@ const blockedRoads = roads.filter(
                   </div>
                 </div>
 
-             {/* REAL SATELLITE IMAGERY ANALYSIS (Copernicus Sentinel-2) */}
-<div
-  style={{
-    margin: "14px 16px",
-    padding: "14px",
-    borderRadius: "10px",
-    border: "1px solid rgba(56,189,248,0.35)",
-    background: "rgba(56,189,248,0.06)",
-  }}
->
-  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-    <strong style={{ fontSize: "13px", color: "#38bdf8" }}>🛰 Satellite Scar & Vegetation Analysis</strong>
-    {satelliteLoading ? (
-      <span style={{ fontSize: "10px", color: "#ffa502" }}>● Syncing CDSE...</span>
-    ) : satelliteData ? (
-      <span style={{ fontSize: "10px", color: "#22c55e", fontWeight: "bold" }}>● LIVE SATELLITE FEED</span>
-    ) : null}
-  </div>
+                {/* REAL SATELLITE IMAGERY ANALYSIS */}
+                <div
+                  style={{
+                    margin: "14px 16px",
+                    padding: "14px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(56,189,248,0.35)",
+                    background: "rgba(56,189,248,0.06)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <strong style={{ fontSize: "13px", color: "#38bdf8" }}>🛰 Satellite Scar & Vegetation Analysis</strong>
+                    {satelliteLoading ? (
+                      <span style={{ fontSize: "10px", color: "#ffa502" }}>● Syncing CDSE...</span>
+                    ) : satelliteData ? (
+                      <span style={{ fontSize: "10px", color: "#22c55e", fontWeight: "bold" }}>● LIVE SATELLITE FEED</span>
+                    ) : null}
+                  </div>
 
-  {satelliteLoading ? (
-    <p style={{ fontSize: "11px", color: "#7f91a8", margin: "4px 0" }}>
-      Downloading & running spectral change detection on Sentinel-2 bands...
-    </p>
-  ) : satelliteData && satelliteData.success ? (
-    <>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
-        <span>Active Scar Outlines:</span>
-        <strong style={{ color: "#ff304f" }}>{satelliteData.scarsDetected} Identified</strong>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
-        <span>Estimated Impact Surface:</span>
-        <strong style={{ color: "#ffd400" }}>{satelliteData.totalDamageHectares} Hectares</strong>
-      </div>
-      <p style={{ fontSize: "11px", color: "#94a3b8", margin: "6px 0 10px", lineHeight: "1.4" }}>
-        {satelliteData.label}
-      </p>
-      <div style={{ display: "flex", gap: "10px" }}>
-        <a
-          href={satelliteData.viewInBrowser}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "inline-block",
-            fontSize: "11px",
-            color: "#0b111e",
-            background: "#38bdf8",
-            padding: "5px 10px",
-            borderRadius: "5px",
-            fontWeight: "bold",
-            textDecoration: "none",
-          }}
-        >
-          View Full GIS Overlay ↗
-        </a>
-        <a
-          href="http://127.0.0.1:8000/export/geojson"
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "inline-block",
-            fontSize: "11px",
-            color: "#22c55e",
-            border: "1px solid rgba(34,197,94,0.4)",
-            padding: "5px 10px",
-            borderRadius: "5px",
-            fontWeight: "bold",
-            textDecoration: "none",
-          }}
-        >
-          GeoJSON Feed
-        </a>
-      </div>
-    </>
-  ) : (
-    <div>
-      <p style={{ fontSize: "11px", color: "#ff7083", margin: "4px 0 8px" }}>
-        ⚠ {satelliteError || "Satellite backend disconnected."}
-      </p>
-      <small style={{ fontSize: "10px", color: "#7f91a8" }}>
-        Make sure FastAPI is running on port 8000: <code>python -m uvicorn app:app --reload</code>
-      </small>
-    </div>
-  )}
-</div>
+                  {satelliteLoading ? (
+                    <p style={{ fontSize: "11px", color: "#7f91a8", margin: "4px 0" }}>
+                      Downloading & running spectral change detection on Sentinel-2 bands...
+                    </p>
+                  ) : satelliteData && satelliteData.success ? (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+                        <span>Active Scar Outlines:</span>
+                        <strong style={{ color: "#ff304f" }}>{satelliteData.scarsDetected} Identified</strong>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
+                        <span>Estimated Impact Surface:</span>
+                        <strong style={{ color: "#ffd400" }}>{satelliteData.totalDamageHectares} Hectares</strong>
+                      </div>
+                      <p style={{ fontSize: "11px", color: "#94a3b8", margin: "6px 0 10px", lineHeight: "1.4" }}>
+                        {satelliteData.label}
+                      </p>
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <a
+                          href={satelliteData.viewInBrowser}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: "inline-block",
+                            fontSize: "11px",
+                            color: "#0b111e",
+                            background: "#38bdf8",
+                            padding: "5px 10px",
+                            borderRadius: "5px",
+                            fontWeight: "bold",
+                            textDecoration: "none",
+                          }}
+                        >
+                          View Full GIS Overlay ↗
+                        </a>
+                        <a
+                          href="http://127.0.0.1:8000/export/geojson"
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: "inline-block",
+                            fontSize: "11px",
+                            color: "#22c55e",
+                            border: "1px solid rgba(34,197,94,0.4)",
+                            padding: "5px 10px",
+                            borderRadius: "5px",
+                            fontWeight: "bold",
+                            textDecoration: "none",
+                          }}
+                        >
+                          GeoJSON Feed
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <p style={{ fontSize: "11px", color: "#ff7083", margin: "4px 0 8px" }}>
+                        ⚠ {satelliteError || "Satellite backend disconnected."}
+                      </p>
+                      <small style={{ fontSize: "10px", color: "#7f91a8" }}>
+                        Make sure FastAPI is running on port 8000: <code>python -m uvicorn app:app --reload</code>
+                      </small>
+                    </div>
+                  )}
+                </div>
 
                 {/* MACHINE LEARNING PREDICTION */}
                 <div
@@ -1173,13 +1157,7 @@ const blockedRoads = roads.filter(
                     }}
                   >
                     <div>
-                      <strong
-                        style={{
-                          display: "block",
-                          fontSize: "12px",
-                          color: "#c084fc",
-                        }}
-                      >
+                      <strong style={{ display: "block", fontSize: "12px", color: "#c084fc" }}>
                         🤖 Machine Learning Prediction
                       </strong>
                       <small style={{ color: "#7f91a8", fontSize: "10px" }}>
@@ -1214,14 +1192,7 @@ const blockedRoads = roads.filter(
                       ["elevation", "📍 Elevation (m)", 0, undefined],
                     ].map(([key, label, min, max]) => (
                       <div key={key}>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "9px",
-                            color: "#7f91a8",
-                            marginBottom: "5px",
-                          }}
-                        >
+                        <label style={{ display: "block", fontSize: "9px", color: "#7f91a8", marginBottom: "5px" }}>
                           {label}
                         </label>
                         <input
@@ -1261,18 +1232,14 @@ const blockedRoads = roads.filter(
                       padding: "10px",
                       borderRadius: "7px",
                       border: "none",
-                      background: mlLoading
-                        ? "rgba(168,85,247,0.35)"
-                        : "#a855f7",
+                      background: mlLoading ? "rgba(168,85,247,0.35)" : "#a855f7",
                       color: "#ffffff",
                       fontWeight: "bold",
                       fontSize: "11px",
                       cursor: mlLoading ? "wait" : "pointer",
                     }}
                   >
-                    {mlLoading
-                      ? "🤖 AI Model Analyzing..."
-                      : "🤖 Predict Landslide Risk"}
+                    {mlLoading ? "🤖 AI Model Analyzing..." : "🤖 Predict Landslide Risk"}
                   </button>
 
                   {mlError && (
@@ -1311,9 +1278,7 @@ const blockedRoads = roads.filter(
                           0;
 
                         const probability = Math.round(
-                          rawProbability <= 1
-                            ? rawProbability * 100
-                            : rawProbability
+                          rawProbability <= 1 ? rawProbability * 100 : rawProbability
                         );
 
                         const level = (
@@ -1330,48 +1295,20 @@ const blockedRoads = roads.filter(
                         ).toUpperCase();
 
                         return (
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div>
-                              <span
-                                style={{
-                                  display: "block",
-                                  fontSize: "9px",
-                                  color: "#7f91a8",
-                                }}
-                              >
+                              <span style={{ display: "block", fontSize: "9px", color: "#7f91a8" }}>
                                 LANDSLIDE PROBABILITY
                               </span>
-                              <strong
-                                style={{
-                                  fontSize: "24px",
-                                  color: "#c084fc",
-                                }}
-                              >
+                              <strong style={{ fontSize: "24px", color: "#c084fc" }}>
                                 {probability}%
                               </strong>
                             </div>
                             <div style={{ textAlign: "right" }}>
-                              <span
-                                style={{
-                                  display: "block",
-                                  fontSize: "9px",
-                                  color: "#7f91a8",
-                                }}
-                              >
+                              <span style={{ display: "block", fontSize: "9px", color: "#7f91a8" }}>
                                 ML RISK LEVEL
                               </span>
-                              <strong
-                                style={{
-                                  color: getRiskColor(level),
-                                  fontSize: "14px",
-                                }}
-                              >
+                              <strong style={{ color: getRiskColor(level), fontSize: "14px" }}>
                                 {level}
                               </strong>
                             </div>
@@ -1474,270 +1411,140 @@ const blockedRoads = roads.filter(
           </>
         )}
 
-  {/* ROAD CONNECTIVITY MONITORING */}
-{activeTab === 'monitoring' && (
-  <section
-    className="panel"
-    style={{
-      marginTop: "16px",
-      padding: "20px",
-    }}
-  >
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: "18px",
-        flexWrap: "wrap",
-        gap: "12px",
-      }}
-    >
-      <div>
-        <h3
-          style={{
-            fontSize: "18px",
-            color: "#38bdf8",
-            margin: 0,
-          }}
-        >
-        🛣️ Road Connectivity Monitoring
-      </h3>
-
-      <p
-        style={{
-          color: "#7f91a8",
-          fontSize: "12px",
-          marginTop: "5px",
-        }}
-      >
-        Landslide-sensitive transportation corridors across the North Eastern Region
-      </p>
-    </div>
-
-    <div
-      style={{
-        fontSize: "11px",
-        color: "#22c55e",
-        fontWeight: "bold",
-      }}
-    >
-      ● {roads.length} ROADS MONITORED
-    </div>
-  </div>
-
-  {/* ROAD STATUS SUMMARY */}
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-      gap: "12px",
-      marginBottom: "18px",
-    }}
-  >
-    <div
-      style={{
-        padding: "14px",
-        borderRadius: "8px",
-        background: "rgba(34,197,94,0.08)",
-        border: "1px solid rgba(34,197,94,0.25)",
-      }}
-    >
-      <div style={{ color: "#7f91a8", fontSize: "10px" }}>
-        🟢 OPEN
-      </div>
-
-      <strong
-        style={{
-          fontSize: "24px",
-          color: "#22c55e",
-        }}
-      >
-        {openRoads}
-      </strong>
-    </div>
-
-    <div
-      style={{
-        padding: "14px",
-        borderRadius: "8px",
-        background: "rgba(245,158,11,0.08)",
-        border: "1px solid rgba(245,158,11,0.25)",
-      }}
-    >
-      <div style={{ color: "#7f91a8", fontSize: "10px" }}>
-        🟡 RESTRICTED
-      </div>
-
-      <strong
-        style={{
-          fontSize: "24px",
-          color: "#f59e0b",
-        }}
-      >
-        {restrictedRoads}
-      </strong>
-    </div>
-
-    <div
-      style={{
-        padding: "14px",
-        borderRadius: "8px",
-        background: "rgba(255,48,79,0.08)",
-        border: "1px solid rgba(255,48,79,0.25)",
-      }}
-    >
-      <div style={{ color: "#7f91a8", fontSize: "10px" }}>
-        🔴 BLOCKED
-      </div>
-
-      <strong
-        style={{
-          fontSize: "24px",
-          color: "#ff304f",
-        }}
-      >
-        {blockedRoads}
-      </strong>
-    </div>
-  </div>
-
-  {/* ROAD LIST */}
-  {roads.length === 0 ? (
-    <div
-      style={{
-        padding: "20px",
-        textAlign: "center",
-        color: "#7f91a8",
-      }}
-    >
-      Loading road connectivity data...
-    </div>
-  ) : (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-        gap: "12px",
-      }}
-    >
-      {roads.map((road) => {
-        const statusColor =
-          road.status === "OPEN"
-            ? "#22c55e"
-            : road.status === "RESTRICTED"
-            ? "#f59e0b"
-            : "#ff304f";
-
-        return (
-          <div
-            key={road.id}
+        {/* ROAD CONNECTIVITY MONITORING */}
+        {activeTab === 'monitoring' && (
+          <section
+            className="panel"
             style={{
-              padding: "15px",
-              borderRadius: "10px",
-              background: "rgba(255,255,255,0.03)",
-              border: `1px solid ${statusColor}33`,
-              borderLeft: `4px solid ${statusColor}`,
+              marginTop: "16px",
+              padding: "20px",
             }}
           >
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                gap: "8px",
+                alignItems: "center",
+                marginBottom: "18px",
+                flexWrap: "wrap",
+                gap: "12px",
               }}
             >
               <div>
-                <strong
-                  style={{
-                    fontSize: "14px",
-                  }}
-                >
-                  🛣️ {road.name}
-                </strong>
-
-                <div
-                  style={{
-                    fontSize: "10px",
-                    color: "#7f91a8",
-                    marginTop: "3px",
-                  }}
-                >
-                  {road.state}
-                </div>
+                <h3 style={{ fontSize: "18px", color: "#38bdf8", margin: 0 }}>
+                  🛣️ Road Connectivity Monitoring
+                </h3>
+                <p style={{ color: "#7f91a8", fontSize: "12px", marginTop: "5px" }}>
+                  Landslide-sensitive transportation corridors across the North Eastern Region
+                </p>
               </div>
 
-              <span
-                style={{
-                  fontSize: "9px",
-                  fontWeight: "bold",
-                  padding: "4px 8px",
-                  height: "fit-content",
-                  borderRadius: "12px",
-                  background: `${statusColor}22`,
-                  color: statusColor,
-                }}
-              >
-                {road.status}
-              </span>
+              <div style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>
+                ● {roads.length} ROADS MONITORED
+              </div>
             </div>
 
+            {/* ROAD STATUS SUMMARY */}
             <div
               style={{
-                marginTop: "12px",
-                fontSize: "12px",
-                color: "#c7d0d8",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "12px",
+                marginBottom: "18px",
               }}
             >
-              📍 {road.startPoint} → {road.endPoint}
+              <div style={{ padding: "14px", borderRadius: "8px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                <div style={{ color: "#7f91a8", fontSize: "10px" }}>🟢 OPEN</div>
+                <strong style={{ fontSize: "24px", color: "#22c55e" }}>{openRoads}</strong>
+              </div>
+
+              <div style={{ padding: "14px", borderRadius: "8px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
+                <div style={{ color: "#7f91a8", fontSize: "10px" }}>🟡 RESTRICTED</div>
+                <strong style={{ fontSize: "24px", color: "#f59e0b" }}>{restrictedRoads}</strong>
+              </div>
+
+              <div style={{ padding: "14px", borderRadius: "8px", background: "rgba(255,48,79,0.08)", border: "1px solid rgba(255,48,79,0.25)" }}>
+                <div style={{ color: "#7f91a8", fontSize: "10px" }}>🔴 BLOCKED</div>
+                <strong style={{ fontSize: "24px", color: "#ff304f" }}>{blockedRoads}</strong>
+              </div>
             </div>
 
-            <div
-              style={{
-                marginTop: "10px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <span
+            {/* ROAD LIST */}
+            {roads.length === 0 ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "#7f91a8" }}>
+                Loading road connectivity data...
+              </div>
+            ) : (
+              <div
                 style={{
-                  fontSize: "9px",
-                  color: "#7f91a8",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                  gap: "12px",
                 }}
               >
-                LANDSLIDE RISK
-              </span>
+                {roads.map((road) => {
+                  const statusColor =
+                    road.status === "OPEN"
+                      ? "#22c55e"
+                      : road.status === "RESTRICTED"
+                      ? "#f59e0b"
+                      : "#ff304f";
 
-              <span
-                style={{
-                  fontSize: "10px",
-                  fontWeight: "bold",
-                  color: getRiskColor(road.riskLevel),
-                }}
-              >
-                {road.riskLevel}
-              </span>
-            </div>
+                  return (
+                    <div
+                      key={road.id}
+                      style={{
+                        padding: "15px",
+                        borderRadius: "10px",
+                        background: "rgba(255,255,255,0.03)",
+                        border: `1px solid ${statusColor}33`,
+                        borderLeft: `4px solid ${statusColor}`,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                        <div>
+                          <strong style={{ fontSize: "14px" }}>🛣️ {road.name}</strong>
+                          <div style={{ fontSize: "10px", color: "#7f91a8", marginTop: "3px" }}>{road.state}</div>
+                        </div>
 
-            {road.description && (
-              <p
-                style={{
-                  fontSize: "10px",
-                  color: "#7f91a8",
-                  margin: "10px 0 0",
-                  lineHeight: "1.5",
-                }}
-              >
-                {road.description}
-              </p>
+                        <span
+                          style={{
+                            fontSize: "9px",
+                            fontWeight: "bold",
+                            padding: "4px 8px",
+                            height: "fit-content",
+                            borderRadius: "12px",
+                            background: `${statusColor}22`,
+                            color: statusColor,
+                          }}
+                        >
+                          {road.status}
+                        </span>
+                      </div>
+
+                      <div style={{ marginTop: "12px", fontSize: "12px", color: "#c7d0d8" }}>
+                        📍 {road.startPoint} → {road.endPoint}
+                      </div>
+
+                      <div style={{ marginTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "9px", color: "#7f91a8" }}>LANDSLIDE RISK</span>
+                        <span style={{ fontSize: "10px", fontWeight: "bold", color: getRiskColor(road.riskLevel) }}>
+                          {road.riskLevel}
+                        </span>
+                      </div>
+
+                      {road.description && (
+                        <p style={{ fontSize: "10px", color: "#7f91a8", margin: "10px 0 0", lineHeight: "1.5" }}>
+                          {road.description}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
-          </div>
-        );
-      })}
-    </div>
-  )}
-</section>
+          </section>
+        )}
 
         {/* VIEW 2: RISK MONITORING */}
         {currentTab === "monitoring" && (
@@ -1780,68 +1587,43 @@ const blockedRoads = roads.filter(
                     </CircleMarker>
                   ))}
 
-          {/* ROAD CONNECTIVITY MARKERS */}
-{roads.map((road) => {
-  const roadColor =
-    road.status === "OPEN"
-      ? "#22c55e"
-      : road.status === "RESTRICTED"
-      ? "#f59e0b"
-      : "#ff304f";
+                  {roads.map((road) => {
+                    const roadColor =
+                      road.status === "OPEN"
+                        ? "#22c55e"
+                        : road.status === "RESTRICTED"
+                        ? "#f59e0b"
+                        : "#ff304f";
 
-  return (
-    <CircleMarker
-      key={`road-${road.id}`}
-      center={[road.lat, road.lng]}
-      radius={9}
-      pathOptions={{
-        color: roadColor,
-        fillColor: roadColor,
-        fillOpacity: 0.9,
-        weight: 2,
-      }}
-    >
-      <Popup>
-        <div style={{ minWidth: "180px" }}>
-          <strong>🛣️ {road.name}</strong>
-
-          <br />
-
-          <span style={{ fontSize: "12px" }}>
-            📍 {road.startPoint} → {road.endPoint}
-          </span>
-
-          <br />
-          <br />
-
-          <strong>Status: </strong>
-          <span style={{ color: roadColor }}>
-            {road.status}
-          </span>
-
-          <br />
-
-          <strong>Risk Level: </strong>
-          <span style={{ color: getRiskColor(road.riskLevel) }}>
-            {road.riskLevel}
-          </span>
-
-          {road.description && (
-            <>
-              <br />
-              <br />
-
-              <span style={{ fontSize: "11px" }}>
-                {road.description}
-              </span>
-            </>
-          )}
-        </div>
-      </Popup>
-    </CircleMarker>
-  );
-})}
-
+                    return (
+                      <CircleMarker
+                        key={`road-${road.id}`}
+                        center={[road.lat, road.lng]}
+                        radius={9}
+                        pathOptions={{
+                          color: roadColor,
+                          fillColor: roadColor,
+                          fillOpacity: 0.9,
+                          weight: 2,
+                        }}
+                      >
+                        <Popup>
+                          <div style={{ minWidth: "180px" }}>
+                            <strong>🛣️ {road.name}</strong><br />
+                            <span style={{ fontSize: "12px" }}>📍 {road.startPoint} → {road.endPoint}</span><br /><br />
+                            <strong>Status: </strong><span style={{ color: roadColor }}>{road.status}</span><br />
+                            <strong>Risk Level: </strong><span style={{ color: getRiskColor(road.riskLevel) }}>{road.riskLevel}</span>
+                            {road.description && (
+                              <>
+                                <br /><br />
+                                <span style={{ fontSize: "11px" }}>{road.description}</span>
+                              </>
+                            )}
+                          </div>
+                        </Popup>
+                      </CircleMarker>
+                    );
+                  })}
                 </MapContainer>
               </div>
 
@@ -1947,6 +1729,28 @@ const blockedRoads = roads.filter(
                       📍 {r.location} • Reported by {r.reporterName}
                     </div>
                     <p style={{ fontSize: "12px", color: "#c7d0d8", margin: "6px 0 0" }}>{r.description}</p>
+
+                    {/* Ground Media Rendering */}
+                    {r.mediaUrl && (
+                      <div style={{ marginTop: "10px" }}>
+                        {r.mediaType === "VIDEO" ? (
+                          <video
+                            src={r.mediaUrl}
+                            controls
+                            style={{ width: "100%", maxHeight: "180px", borderRadius: "6px", background: "#000" }}
+                          />
+                        ) : (
+                          <a href={r.mediaUrl} target="_blank" rel="noreferrer">
+                            <img
+                              src={r.mediaUrl}
+                              alt="Ground proof"
+                              style={{ width: "100%", maxHeight: "180px", objectFit: "cover", borderRadius: "6px" }}
+                            />
+                          </a>
+                        )}
+                      </div>
+                    )}
+
                     {canManage && r.status !== "RESOLVED" && (
                       <button
                         onClick={() => handleResolveSos(r.id)}
@@ -2036,7 +1840,7 @@ const blockedRoads = roads.filter(
           </div>
         )}
 
-        {/* VIEW 6: SENSOR NETWORK (Officer/NDRF only) */}
+        {/* VIEW 6: SENSOR NETWORK */}
         {currentTab === "sensors" && canManage && (
           <div className="panel" style={{ padding: "22px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
@@ -2250,7 +2054,7 @@ const blockedRoads = roads.filter(
         </footer>
       </main>
 
-      {/* ================= FLOATING CITIZEN SOS BUTTON ================= */}
+      {/* FLOATING SOS BUTTON */}
       <button
         onClick={() => setShowSosModal(true)}
         title="Report a ground condition (road crack, tilt, muddy water)"
@@ -2264,7 +2068,7 @@ const blockedRoads = roads.filter(
         🚩
       </button>
 
-      {/* ================= MODAL: CITIZEN SOS / COMMUNITY REPORT ================= */}
+      {/* MODAL: CITIZEN SOS / COMMUNITY REPORT */}
       {showSosModal && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex",
@@ -2272,23 +2076,33 @@ const blockedRoads = roads.filter(
         }}>
           <div style={{
             background: "#131d31", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px",
-            width: "400px", maxWidth: "90vw", padding: "24px", color: "#e2e8f0", boxShadow: "0 20px 50px rgba(0,0,0,0.6)"
+            width: "440px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto", padding: "24px", color: "#e2e8f0", boxShadow: "0 20px 50px rgba(0,0,0,0.6)"
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "18px" }}>🚩</span>
                 <h3 style={{ margin: 0, fontSize: "16px", color: "#f59e0b" }}>Report Ground Condition</h3>
               </div>
-              <button onClick={() => { setShowSosModal(false); setSosSubmitted(false); }} style={{ background: "transparent", border: "none", color: "#7f91a8", fontSize: "18px", cursor: "pointer" }}>✕</button>
+              <button 
+                onClick={() => { 
+                  setShowSosModal(false); 
+                  setSosSubmitted(false); 
+                  setSosMediaFile(null);
+                  setSosMediaPreview(null);
+                }} 
+                style={{ background: "transparent", border: "none", color: "#7f91a8", fontSize: "18px", cursor: "pointer" }}
+              >
+                ✕
+              </button>
             </div>
 
             <p style={{ fontSize: "12px", color: "#7f91a8", marginBottom: "16px" }}>
-              Reporting near <strong style={{ color: "#e2e8f0" }}>{selected.name}, {selected.state}</strong>. Your ground-level input helps validate AI sensor readings.
+              Reporting near <strong style={{ color: "#e2e8f0" }}>{selected.name}, {selected.state}</strong>. Your geo-tagged evidence validates AI risk predictions.
             </p>
 
             {sosSubmitted ? (
               <div style={{ padding: "16px", borderRadius: "8px", background: "rgba(34,197,94,.1)", border: "1px solid rgba(34,197,94,.35)", color: "#22c55e", fontSize: "13px", textAlign: "center" }}>
-                ✓ Report received. Thank you for helping keep your community safe.
+                ✓ Report and ground media received. Thank you for helping keep your community safe!
               </div>
             ) : (
               <form onSubmit={handleSosSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -2316,6 +2130,69 @@ const blockedRoads = roads.filter(
                     <option>Fallen Trees / Blocked Path</option>
                     <option>Other</option>
                   </select>
+                </div>
+
+                {/* Visual Proof / Media Upload */}
+                <div>
+                  <label style={{ fontSize: "12px", color: "#7f91a8", display: "block", marginBottom: "4px" }}>
+                    Visual Proof (Photo / Video)
+                  </label>
+                  <div style={{
+                    border: "1px dashed rgba(255,255,255,0.2)",
+                    borderRadius: "6px",
+                    padding: "12px",
+                    background: "#0b111e",
+                    textAlign: "center"
+                  }}>
+                    <input
+                      type="file"
+                      id="sos-media-input"
+                      accept="image/*,video/*"
+                      capture="environment"
+                      onChange={handleMediaChange}
+                      style={{ display: "none" }}
+                    />
+                    <label
+                      htmlFor="sos-media-input"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        padding: "6px 14px",
+                        borderRadius: "6px",
+                        background: "rgba(245, 158, 11, 0.15)",
+                        border: "1px solid rgba(245, 158, 11, 0.4)",
+                        color: "#f59e0b",
+                        cursor: "pointer"
+                      }}
+                    >
+                      📷 Take Photo / Choose File
+                    </label>
+
+                    {sosMediaFile && (
+                      <div style={{ marginTop: "10px" }}>
+                        <div style={{ fontSize: "11px", color: "#38bdf8", marginBottom: "6px" }}>
+                          Selected: {sosMediaFile.name} ({(sosMediaFile.size / (1024 * 1024)).toFixed(2)} MB)
+                        </div>
+                        {sosMediaPreview && sosMediaFile.type.startsWith("image") && (
+                          <img
+                            src={sosMediaPreview}
+                            alt="Incident Preview"
+                            style={{ width: "100%", maxHeight: "140px", objectFit: "cover", borderRadius: "6px" }}
+                          />
+                        )}
+                        {sosMediaPreview && sosMediaFile.type.startsWith("video") && (
+                          <video
+                            src={sosMediaPreview}
+                            controls
+                            style={{ width: "100%", maxHeight: "140px", borderRadius: "6px" }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -2358,7 +2235,11 @@ const blockedRoads = roads.filter(
                 <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
                   <button
                     type="button"
-                    onClick={() => setShowSosModal(false)}
+                    onClick={() => {
+                      setShowSosModal(false);
+                      setSosMediaFile(null);
+                      setSosMediaPreview(null);
+                    }}
                     style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.06)", border: "none", color: "#e2e8f0", cursor: "pointer" }}
                   >
                     Cancel
@@ -2368,7 +2249,7 @@ const blockedRoads = roads.filter(
                     disabled={sosSubmitting}
                     style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "#f59e0b", border: "none", color: "#1a1204", fontWeight: "bold", cursor: sosSubmitting ? "wait" : "pointer" }}
                   >
-                    {sosSubmitting ? "Submitting..." : "Submit Report"}
+                    {sosSubmitting ? "Uploading Media..." : "Submit Report"}
                   </button>
                 </div>
               </form>
@@ -2377,8 +2258,7 @@ const blockedRoads = roads.filter(
         </div>
       )}
 
-      {/* ================= MODAL: ADMIN / AUTHORITY AUTHENTICATION ================= */}
-      {/* ================= ROLE GATE (first load) ================= */}
+      {/* ROLE GATE */}
       {showRoleGate && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(5,8,12,0.96)", display: "flex",
@@ -2416,6 +2296,7 @@ const blockedRoads = roads.filter(
         </div>
       )}
 
+      {/* MODAL: ADMIN / AUTHORITY AUTHENTICATION */}
       {showAuthModal && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex",

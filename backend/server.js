@@ -5,6 +5,19 @@ const { PrismaClient } = require("@prisma/client");
 const { execFile } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 }, // 30 MB max
+});
 
 require("dotenv").config();
 
@@ -710,6 +723,105 @@ app.get(
       res.status(500).json({
         success: false,
 
+        error: err.message,
+      });
+    }
+  }
+);
+
+// POST SOS REPORT WITH MEDIA UPLOAD
+app.post(
+  "/api/sos",
+  upload.single("media"),
+  async (req, res) => {
+    try {
+      const {
+        reporterName,
+        location,
+        lat,
+        lng,
+        issueType,
+        description,
+      } = req.body;
+
+      if (!location || !issueType || !description) {
+        return res.status(400).json({
+          success: false,
+          error: "location, issueType and description are required",
+        });
+      }
+
+      const latitude = parseFloat(lat);
+      const longitude = parseFloat(lng);
+
+      if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+        return res.status(400).json({
+          success: false,
+          error: "Valid latitude and longitude are required",
+        });
+      }
+
+      let mediaUrl = null;
+      let mediaType = null;
+
+      // Agar photo/video attach ki gayi hai toh Cloudinary par upload karo
+      if (req.file) {
+        const uploadResult = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: "landslide_reports",
+              resource_type: "auto",
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          stream.end(req.file.buffer);
+        });
+
+        mediaUrl = uploadResult.secure_url;
+        mediaType = uploadResult.resource_type === "video" ? "VIDEO" : "IMAGE";
+      }
+
+      const savedReport =
+        await prisma.sosReport.create({
+          data: {
+            reporterName: reporterName || "Anonymous Citizen",
+            location,
+            lat: latitude,
+            lng: longitude,
+            issueType,
+            description,
+            ...(mediaUrl && { mediaUrl }),
+            ...(mediaType && { mediaType }),
+          },
+        });
+
+      console.log("");
+      console.log(
+        `📢 [CITIZEN SOS RECEIVED] ${issueType} near ${location} ${mediaUrl ? `[Media: ${mediaType}]` : ""}`
+      );
+
+      const roadUpdate =
+        await updateRoadFromSosReport(
+          latitude,
+          longitude,
+          issueType,
+          description,
+          location
+        );
+
+      res.status(201).json({
+        success: true,
+        message: "Ground report received and logged.",
+        report: savedReport,
+        roadConnectivityUpdate: roadUpdate,
+      });
+    } catch (err) {
+      console.error("SOS submit error:", err);
+      res.status(500).json({
+        success: false,
         error: err.message,
       });
     }

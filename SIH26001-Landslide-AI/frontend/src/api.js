@@ -1,5 +1,6 @@
-const API_BASE_URL = 'https://landslide-backend1.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api'; // Testing ke liye localhost; production deploy ke baad 'https://landslide-backend1.onrender.com/api' rakh lena
 const FASTAPI_URL = 'https://landslide-satellite-ai.onrender.com';
+
 export const fetchHotspots = async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/hotspots`);
@@ -90,12 +91,16 @@ export const fetchLiveWeather = async (lat, lng) => {
 };
 
 // ================= CITIZEN SOS / COMMUNITY REPORTS =================
+// Supports both FormData (with photo/video upload) and traditional JSON payload
 export const submitSosReport = async (payload) => {
   try {
+    const isFormData = payload instanceof FormData;
+
     const res = await fetch(`${API_BASE_URL}/sos`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      // CRITICAL: FormData ke sath Content-Type header manually set nahi kiya jata
+      headers: isFormData ? undefined : { 'Content-Type': 'application/json' },
+      body: isFormData ? payload : JSON.stringify(payload)
     });
     return await res.json();
   } catch (err) {
@@ -126,7 +131,6 @@ export const resolveSosReport = async (id) => {
 };
 
 // ================= REAL IOT SENSOR HARDWARE (ESP32/Arduino field units) =================
-// Latest reading per registered physical device
 export const fetchSensorNetwork = async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/sensors/latest`);
@@ -138,7 +142,6 @@ export const fetchSensorNetwork = async () => {
   }
 };
 
-// Full reading history for one physical device
 export const fetchSensorHistory = async (deviceId) => {
   try {
     const res = await fetch(`${API_BASE_URL}/sensors/${deviceId}/history`);

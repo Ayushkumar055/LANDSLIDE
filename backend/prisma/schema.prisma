@@ -82,3 +82,17 @@ model SensorReading {
 
   @@index([deviceId])
 }
+
+model LandslideReport {
+  id          String   @id @default(uuid())
+  name        String?
+  phone       String?
+  issueType   String   // CRACK, LANDSLIDE, BLOCKED_ROAD
+  description String?
+  latitude    Float
+  longitude   Float
+  mediaUrl    String?
+  mediaType   String?  // "IMAGE" ya "VIDEO"
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+}
