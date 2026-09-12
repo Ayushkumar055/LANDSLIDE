@@ -889,7 +889,7 @@ export default function App() {
 
       {/* SIDEBAR */}
       <aside
-        className="sidebar"
+        className={`sidebar ${mobileSidebarOpen ? "sidebar-open" : ""}`}
         style={{
           height: "100vh",
           overflowY: "auto",
