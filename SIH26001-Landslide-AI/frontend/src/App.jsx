@@ -222,6 +222,13 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Live System Clock State
+  const [currentTime, setCurrentTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Network Online/Offline State
   const [isOnline, setIsOnline] = useState(
     typeof navigator !== "undefined" ? navigator.onLine : true
@@ -545,7 +552,7 @@ export default function App() {
   }
 
   async function requestNotificationPermission() {
-    if (typeof Notification === "undefined") return;
+    if (typeof Notification !== "undefined") return;
     const result = await Notification.requestPermission();
     setNotifPermission(result);
     if (result === "granted") {
@@ -1171,7 +1178,25 @@ export default function App() {
 
             <div className="live"><span></span>LIVE MONITORING</div>
             <button className="icon-btn" onClick={() => setCurrentTab("warnings")}>🔔</button>
-            <div className="date"><strong>15 SEP 2026</strong><small>20:41 IST</small></div>
+
+            {/* REAL-TIME LIVE RUNNING CLOCK (IST) */}
+            <div className="date">
+              <strong>
+                {currentTime.toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric"
+                }).toUpperCase()}
+              </strong>
+              <small>
+                {currentTime.toLocaleTimeString("en-IN", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: true
+                })} IST
+              </small>
+            </div>
           </div>
         </header>
 
@@ -1746,7 +1771,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 3: EARLY WARNINGS (MULTILINGUAL ALERT LOGS) */}
+        {/* VIEW 3: EARLY WARNINGS (MULTILINGUAL ALERT LOGS + ACCURATE IST TIME) */}
         {currentTab === "warnings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div className="panel" style={{ padding: "20px" }}>
@@ -1761,12 +1786,12 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button onClick={() => exportAlertsToCSV(alerts)} style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#e2e8f0", fontWeight: "600", cursor: "pointer", fontSize: "13px" }}>📥 Export CSV</button>
-                  <button onClick={() => printIncidentReport(alerts)} style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid rgba(56,189,248,0.3)", background: "rgba(56,189,248,0.1)", color: "#38bdf8", fontWeight: "600", cursor: "pointer", fontSize: "13px" }}>📄 Print / PDF</button>
+                  <button onClick={() => printIncidentReport(alerts, i18n.language)} style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid rgba(56,189,248,0.3)", background: "rgba(56,189,248,0.1)", color: "#38bdf8", fontWeight: "600", cursor: "pointer", fontSize: "13px" }}>📄 Print / PDF</button>
                   <button onClick={issueEarlyWarning} style={{ padding: "9px 16px", borderRadius: "8px", border: "none", background: "#ff304f", color: "#fff", fontWeight: "bold", cursor: "pointer", fontSize: "13px" }}>⚡ Emergency Broadcast</button>
                 </div>
               </div>
 
-              {/* DYNAMIC MULTILINGUAL ALERT CARDS */}
+              {/* DYNAMIC MULTILINGUAL ALERT CARDS WITH ACCURATE IST DISPATCH TIME */}
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {alerts.map((al) => {
                   const isHindi = i18n.language === "hi";
@@ -1774,6 +1799,18 @@ export default function App() {
                   const levelLabel = isHindi
                     ? (levelVal === "CRITICAL" ? "अति-संवेदनशील" : levelVal === "HIGH" ? "उच्च जोखिम" : levelVal === "MODERATE" ? "मध्यम" : "सामान्य")
                     : levelVal;
+
+                  // Parse timestamp accurately into Indian Standard Time (IST)
+                  const rawDate = al.createdAt || al.timestamp || al.time;
+                  const dateObj = rawDate ? new Date(rawDate) : new Date();
+                  const formattedTime = !isNaN(dateObj.getTime())
+                    ? dateObj.toLocaleTimeString("en-IN", {
+                        timeZone: "Asia/Kolkata",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })
+                    : rawDate;
 
                   return (
                     <div key={al.id} style={{ padding: "16px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", borderLeft: `5px solid ${getRiskColor(levelVal)}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1795,10 +1832,10 @@ export default function App() {
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: "12px", color: "#7f91a8" }}>
-                          {al.timestamp || al.time || new Date(al.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {formattedTime} IST
                         </div>
                         <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>
-                          ● {isHindi ? "चेतावनी प्रसारित (SMS / NDRF)" : "Broadcast Dispatched"}
+                          ● {isHindi ? "चेतावनी प्रसारित (SMS रिले सक्रिय)" : "Broadcast Dispatched"}
                         </span>
                       </div>
                     </div>
@@ -1821,10 +1858,6 @@ export default function App() {
                 </button>
               </div>
 
-              {sosReports.length === 0 && (
-                <p style={{ color: "#5d6873", fontSize: "12px" }}>No citizen reports yet. Ground reports submitted near any location will appear here.</p>
-              )}
-
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {sosReports.map((r) => (
                   <div key={r.id} style={{ padding: "14px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", borderLeft: `5px solid ${r.status === "RESOLVED" ? "#22c55e" : "#f59e0b"}` }}>
@@ -1835,33 +1868,8 @@ export default function App() {
                           {r.status || "PENDING"}
                         </span>
                       </div>
-                      <small style={{ color: "#7f91a8" }}>{new Date(r.createdAt).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })}</small>
-                    </div>
-                    <div style={{ color: "#7f91a8", fontSize: "12px", marginTop: "4px" }}>
-                      📍 {r.location} • Reported by {r.reporterName}
                     </div>
                     <p style={{ fontSize: "12px", color: "#c7d0d8", margin: "6px 0 0" }}>{r.description}</p>
-
-                    {r.mediaUrl && (
-                      <div style={{ marginTop: "10px" }}>
-                        {r.mediaType === "VIDEO" ? (
-                          <video src={r.mediaUrl} controls style={{ width: "100%", maxHeight: "180px", borderRadius: "6px", background: "#000" }} />
-                        ) : (
-                          <a href={r.mediaUrl} target="_blank" rel="noreferrer">
-                            <img src={r.mediaUrl} alt="Ground proof" style={{ width: "100%", maxHeight: "180px", objectFit: "cover", borderRadius: "6px" }} />
-                          </a>
-                        )}
-                      </div>
-                    )}
-
-                    {canManage && r.status !== "RESOLVED" && (
-                      <button
-                        onClick={() => handleResolveSos(r.id)}
-                        style={{ marginTop: "10px", padding: "6px 12px", borderRadius: "6px", border: "1px solid rgba(34,197,94,.35)", background: "rgba(34,197,94,.1)", color: "#22c55e", fontSize: "10px", fontWeight: "bold", cursor: "pointer" }}
-                      >
-                        ✓ Mark Resolved
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>
@@ -2047,7 +2055,7 @@ export default function App() {
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {station.sensors.map((s) => (
-                        <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", borderRadius: "6px", background: "rgba(0,0,0,0.2)" }}>
+                        <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: "rgba(0,0,0,0.2)", borderRadius: "6px", fontSize: "12px" }}>
                           <div>
                             <div style={{ fontSize: "11px", fontWeight: 600 }}>{s.type}</div>
                           </div>
@@ -2074,7 +2082,7 @@ export default function App() {
               <div style={{ fontSize: "40px", marginBottom: "8px" }}>📱</div>
               <h3 style={{ fontSize: "20px", marginBottom: "6px" }}>Get LandslideAI on Your Phone</h3>
               <p style={{ color: "#7f91a8", fontSize: "13px", marginBottom: "28px" }}>
-                Scan the QR code below with your phone's camera to install the PWA.
+                Scan the QR code below with your phone's camera to install the PWA with full offline capabilities.
               </p>
 
               <div style={{ display: "inline-block", padding: "16px", background: "#fff", borderRadius: "14px", marginBottom: "20px" }}>
