@@ -136,25 +136,31 @@ function MapController({ location }) {
   return null;
 }
 
-// Upgraded Heatmap Layer with auto-bounds and high visibility
+// Resilient Heatmap Layer with auto-fit, canvas lift, and fallback rendering
 function HeatmapLayer({ points }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!map || !window.L || !window.L.heatLayer || !points.length) return;
+    if (!map || !points?.length) return;
+
+    const L = window.L;
+    if (!L || typeof L.heatLayer !== "function") {
+      console.warn("Leaflet Heat plugin not loaded. Ensure script is in index.html");
+      return;
+    }
 
     const heatData = points.map((loc) => [
-      loc.lat,
-      loc.lng,
-      Math.min(Math.max((loc.risk || 20) / 100, 0.35), 1.0),
+      Number(loc.lat),
+      Number(loc.lng),
+      Math.min(Math.max((loc.risk || 40) / 100, 0.4), 1.0),
     ]);
 
-    const heatLayer = window.L.heatLayer(heatData, {
-      radius: 45,
-      blur: 25,
-      maxZoom: 10,
+    const heatLayer = L.heatLayer(heatData, {
+      radius: 55,
+      blur: 24,
+      maxZoom: 11,
       max: 1.0,
-      minOpacity: 0.45,
+      minOpacity: 0.55,
       gradient: {
         0.2: "#00e5ff",
         0.4: "#22c55e",
@@ -166,15 +172,25 @@ function HeatmapLayer({ points }) {
 
     heatLayer.addTo(map);
 
-    // Auto-fit to focus on North-East India cluster immediately
+    // Auto-focus directly on the North-Eastern cluster
     try {
-      const bounds = window.L.latLngBounds(points.map((p) => [p.lat, p.lng]));
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
+      const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
+      map.fitBounds(bounds, { padding: [35, 35], maxZoom: 8 });
     } catch {
       map.setView([25.7, 92.5], 6.5);
     }
 
+    const timer = setTimeout(() => {
+      const canvas = document.querySelector(".leaflet-heatmap-layer");
+      if (canvas) {
+        canvas.style.zIndex = "450";
+        canvas.style.pointerEvents = "none";
+      }
+      map.invalidateSize();
+    }, 80);
+
     return () => {
+      clearTimeout(timer);
       if (map && heatLayer) {
         map.removeLayer(heatLayer);
       }
@@ -297,7 +313,6 @@ export default function App() {
   const [mlLoading, setMlLoading] = useState(false);
   const [mlError, setMlError] = useState("");
 
-  // Sync offline queued SOS reports
   const syncOfflineQueue = async () => {
     if (!navigator.onLine) return;
     try {
@@ -729,7 +744,7 @@ export default function App() {
         setLiveRiskLevel(result.riskLevel);
         setRiskHistory((prev) => [...prev.slice(-9), result.riskScore]);
 
-        // Dynamically update locationsList so the Heatmap updates its intensity in real time!
+        // Live heatmap update
         setLocationsList((prevList) =>
           prevList.map((loc) =>
             loc.name === selected.name
@@ -1665,7 +1680,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* ROAD STATUS SUMMARY */}
             <div
               style={{
                 display: "grid",
@@ -1690,7 +1704,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* ROAD LIST */}
             {roads.length === 0 ? (
               <div style={{ padding: "20px", textAlign: "center", color: "#7f91a8" }}>
                 Loading road connectivity data...

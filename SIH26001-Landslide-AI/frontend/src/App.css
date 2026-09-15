@@ -447,7 +447,16 @@ nav {
 .map {
   height: 100%;
   width: 100%;
-  filter: saturate(0.55) brightness(0.72);
+}
+
+.leaflet-tile-pane {
+  filter: saturate(0.6) brightness(0.75);
+}
+
+.leaflet-heatmap-layer {
+  opacity: 0.92 !important;
+  z-index: 450 !important;
+  filter: drop-shadow(0 0 12px rgba(255, 48, 79, 0.45));
 }
 
 .map-controls {
@@ -868,7 +877,7 @@ footer {
   }
 }
 
-/* ================= HAMBURGER MENU (mobile only) ================= */
+/* HAMBURGER MENU */
 .hamburger-btn {
   display: none;
   width: 36px;
@@ -887,7 +896,7 @@ footer {
   display: none;
 }
 
-/* ================= MOBILE LAYOUT (phones & small tablets) ================= */
+/* MOBILE LAYOUT */
 @media (max-width: 860px) {
   body {
     min-width: 0;
@@ -898,7 +907,6 @@ footer {
     display: flex;
   }
 
-  /* Sidebar becomes an off-canvas panel, hidden by default */
   .sidebar {
     width: 260px;
     max-width: 80vw;
@@ -950,7 +958,6 @@ footer {
     display: none;
   }
 
-  /* Stat cards: 2 per row instead of 4 */
   .stats {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
@@ -964,7 +971,6 @@ footer {
     font-size: 17px;
   }
 
-  /* Dashboard & bottom grids stack vertically */
   .dashboard-grid,
   .bottom-grid {
     grid-template-columns: 1fr;
@@ -981,11 +987,6 @@ footer {
     height: 300px;
   }
 
-  .map {
-    filter: none; /* keep the map crisp on small screens */
-  }
-
-  /* Location rows: drop the least essential column on narrow screens */
   .location-row {
     grid-template-columns: 9px 1fr 50px 12px;
   }
