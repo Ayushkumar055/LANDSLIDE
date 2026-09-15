@@ -136,68 +136,70 @@ function MapController({ location }) {
   return null;
 }
 
-// Resilient Heatmap Layer with auto-fit, canvas lift, and fallback rendering
+// 100% Reliable Native React-Leaflet Heatmap Layer
 function HeatmapLayer({ points }) {
   const map = useMap();
 
   useEffect(() => {
     if (!map || !points?.length) return;
-
-    const L = window.L;
-    if (!L || typeof L.heatLayer !== "function") {
-      console.warn("Leaflet Heat plugin not loaded. Ensure script is in index.html");
-      return;
-    }
-
-    const heatData = points.map((loc) => [
-      Number(loc.lat),
-      Number(loc.lng),
-      Math.min(Math.max((loc.risk || 40) / 100, 0.4), 1.0),
-    ]);
-
-    const heatLayer = L.heatLayer(heatData, {
-      radius: 55,
-      blur: 24,
-      maxZoom: 11,
-      max: 1.0,
-      minOpacity: 0.55,
-      gradient: {
-        0.2: "#00e5ff",
-        0.4: "#22c55e",
-        0.6: "#ffd400",
-        0.8: "#ff8a00",
-        1.0: "#ff304f",
-      },
-    });
-
-    heatLayer.addTo(map);
-
-    // Auto-focus directly on the North-Eastern cluster
-    try {
-      const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng]));
-      map.fitBounds(bounds, { padding: [35, 35], maxZoom: 8 });
-    } catch {
-      map.setView([25.7, 92.5], 6.5);
-    }
-
-    const timer = setTimeout(() => {
-      const canvas = document.querySelector(".leaflet-heatmap-layer");
-      if (canvas) {
-        canvas.style.zIndex = "450";
-        canvas.style.pointerEvents = "none";
-      }
-      map.invalidateSize();
-    }, 80);
-
-    return () => {
-      clearTimeout(timer);
-      if (map && heatLayer) {
-        map.removeLayer(heatLayer);
-      }
-    };
+    map.setView([25.7, 92.5], 6.5);
   }, [map, points]);
 
-  return null;
+  return (
+    <>
+      {points.map((loc) => {
+        const riskVal = loc.risk || 50;
+        const color =
+          riskVal >= 80 ? "#ff304f" :
+          riskVal >= 60 ? "#ff8a00" :
+          riskVal >= 40 ? "#ffd400" : "#22c55e";
+
+        return (
+          <div key={`heat-node-${loc.name}`}>
+            {/* Outer Diffusion Halo */}
+            <CircleMarker
+              center={[loc.lat, loc.lng]}
+              radius={55}
+              pathOptions={{
+                color: "transparent",
+                fillColor: color,
+                fillOpacity: 0.18,
+              }}
+            />
+            {/* Mid Density Glow */}
+            <CircleMarker
+              center={[loc.lat, loc.lng]}
+              radius={34}
+              pathOptions={{
+                color: "transparent",
+                fillColor: color,
+                fillOpacity: 0.40,
+              }}
+            />
+            {/* Intense Thermal Core */}
+            <CircleMarker
+              center={[loc.lat, loc.lng]}
+              radius={16}
+              pathOptions={{
+                color: color,
+                weight: 1.5,
+                fillColor: color,
+                fillOpacity: 0.85,
+              }}
+            >
+              <Popup>
+                <div style={{ color: "#fff" }}>
+                  <strong style={{ fontSize: "12px" }}>🔥 {loc.name}</strong><br />
+                  <span>Hazard Intensity: <b style={{ color }}>{loc.risk}/100 ({loc.level})</b></span><br />
+                  <small>Precipitation: {loc.rainfall} mm</small>
+                </div>
+              </Popup>
+            </CircleMarker>
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 export default function App() {
@@ -744,7 +746,6 @@ export default function App() {
         setLiveRiskLevel(result.riskLevel);
         setRiskHistory((prev) => [...prev.slice(-9), result.riskScore]);
 
-        // Live heatmap update
         setLocationsList((prevList) =>
           prevList.map((loc) =>
             loc.name === selected.name
