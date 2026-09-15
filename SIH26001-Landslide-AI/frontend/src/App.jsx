@@ -136,6 +136,43 @@ function MapController({ location }) {
   return null;
 }
 
+// Custom Heatmap Layer using leaflet.heat
+function HeatmapLayer({ points }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !window.L || !window.L.heatLayer) return;
+
+    const heatData = points.map((loc) => [
+      loc.lat,
+      loc.lng,
+      Math.min(Math.max((loc.risk || 10) / 100, 0.1), 1.0),
+    ]);
+
+    const heatLayer = window.L.heatLayer(heatData, {
+      radius: 40,
+      blur: 25,
+      maxZoom: 10,
+      max: 1.0,
+      gradient: {
+        0.2: "#00e5ff",
+        0.4: "#22c55e",
+        0.6: "#ffd400",
+        0.8: "#ff8a00",
+        1.0: "#ff304f",
+      },
+    });
+
+    heatLayer.addTo(map);
+
+    return () => {
+      map.removeLayer(heatLayer);
+    };
+  }, [map, points]);
+
+  return null;
+}
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [currentTab, setCurrentTab] = useState("dashboard");
@@ -465,7 +502,7 @@ export default function App() {
   }
 
   async function requestNotificationPermission() {
-    if (typeof Notification === "undefined") return;
+    if (typeof Notification !== "undefined") return;
     const result = await Notification.requestPermission();
     setNotifPermission(result);
     if (result === "granted") {
@@ -567,7 +604,6 @@ export default function App() {
     setSosMediaPreview(URL.createObjectURL(file));
   };
 
-  // Submit SOS Report with Offline Network Detection
   async function handleSosSubmit(e) {
     e.preventDefault();
     if (!sosForm.description.trim()) return;
@@ -1105,6 +1141,7 @@ export default function App() {
                   <div><h3>Regional Risk Map</h3><p>AI-powered landslide susceptibility monitoring</p></div>
                   <div className="map-controls">
                     <button className={`control ${mapMode === "risk" ? "active" : ""}`} onClick={() => setMapMode("risk")}>Risk</button>
+                    <button className={`control ${mapMode === "heat" ? "active" : ""}`} onClick={() => setMapMode("heat")}>🔥 Heatmap</button>
                     <button className={`control ${mapMode === "rainfall" ? "active" : ""}`} onClick={() => setMapMode("rainfall")}>Rainfall</button>
                     <button className={`control ${mapMode === "terrain" ? "active" : ""}`} onClick={() => setMapMode("terrain")}>Terrain</button>
                     <button className={`control ${showEvacRoute ? "active" : ""}`} onClick={() => setShowEvacRoute((s) => !s)}>Shelters</button>
@@ -1115,26 +1152,32 @@ export default function App() {
                   <MapContainer center={[25.7, 92.5]} zoom={6} scrollWheelZoom={true} className="map">
                     <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <MapController location={selected} />
-                    {locationsList.map((location) => {
-                      const markerColor = getMarkerColor(location);
-                      const markerValue = getMarkerValue(location);
-                      return (
-                        <CircleMarker
-                          key={location.name}
-                          center={[location.lat, location.lng]}
-                          radius={location.risk >= 70 ? 15 : 11}
-                          pathOptions={{ color: markerColor, fillColor: markerColor, fillOpacity: 0.65, weight: 2 }}
-                          eventHandlers={{ click: () => setSelected(location) }}
-                        >
-                          <Popup>
-                            <strong>{location.name}</strong><br />{location.state}<br />
-                            {mapMode === "risk" && `Risk: ${markerValue}/100`}
-                            {mapMode === "rainfall" && `Rainfall: ${markerValue} mm`}
-                            {mapMode === "terrain" && `Slope: ${markerValue}°`}
-                          </Popup>
-                        </CircleMarker>
-                      );
-                    })}
+
+                    {/* DYNAMIC HEATMAP LAYER */}
+                    {mapMode === "heat" && <HeatmapLayer points={locationsList} />}
+
+                    {/* MARKERS DISPLAYED IN NON-HEATMAP MODES */}
+                    {mapMode !== "heat" &&
+                      locationsList.map((location) => {
+                        const markerColor = getMarkerColor(location);
+                        const markerValue = getMarkerValue(location);
+                        return (
+                          <CircleMarker
+                            key={location.name}
+                            center={[location.lat, location.lng]}
+                            radius={location.risk >= 70 ? 15 : 11}
+                            pathOptions={{ color: markerColor, fillColor: markerColor, fillOpacity: 0.65, weight: 2 }}
+                            eventHandlers={{ click: () => setSelected(location) }}
+                          >
+                            <Popup>
+                              <strong>{location.name}</strong><br />{location.state}<br />
+                              {mapMode === "risk" && `Risk: ${markerValue}/100`}
+                              {mapMode === "rainfall" && `Rainfall: ${markerValue} mm`}
+                              {mapMode === "terrain" && `Slope: ${markerValue}°`}
+                            </Popup>
+                          </CircleMarker>
+                        );
+                      })}
 
                     {showEvacRoute && shelters.map((shelter) => (
                       <CircleMarker
@@ -2224,7 +2267,6 @@ export default function App() {
 
       {/* FLOATING ACTION DOCK: QUICK DIAL + SOS */}
       <div style={{ position: "fixed", bottom: "26px", right: "26px", zIndex: 1500, display: "flex", gap: "12px", alignItems: "center" }}>
-        {/* Floating Quick Dial Button */}
         <button
           onClick={() => setShowDialModal(true)}
           title="Emergency Quick Dial (NDRF / SDMA / DEOC)"
@@ -2246,7 +2288,6 @@ export default function App() {
           📞
         </button>
 
-        {/* Floating SOS Button */}
         <button
           onClick={() => setShowSosModal(true)}
           title="Report a ground condition (road crack, tilt, muddy water)"
@@ -2277,7 +2318,7 @@ export default function App() {
         />
       )}
 
-      {/* MODAL: CITIZEN SOS / COMMUNITY REPORT (OFFLINE RESILIENT) */}
+      {/* MODAL: CITIZEN SOS / COMMUNITY REPORT */}
       {showSosModal && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex",
@@ -2357,7 +2398,6 @@ export default function App() {
                   </select>
                 </div>
 
-                {/* Visual Proof / Media Upload */}
                 <div>
                   <label style={{ fontSize: "12px", color: "#7f91a8", display: "block", marginBottom: "4px" }}>
                     Visual Proof (Photo / Video)
