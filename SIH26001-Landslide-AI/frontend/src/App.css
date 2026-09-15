@@ -449,6 +449,7 @@ nav {
   width: 100%;
 }
 
+/* Leaflet Tile & Heat Layer Fix */
 .leaflet-tile-pane {
   filter: saturate(0.6) brightness(0.75);
 }
