@@ -136,24 +136,25 @@ function MapController({ location }) {
   return null;
 }
 
-// Custom Heatmap Layer using leaflet.heat
+// Upgraded Heatmap Layer with auto-bounds and high visibility
 function HeatmapLayer({ points }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!map || !window.L || !window.L.heatLayer) return;
+    if (!map || !window.L || !window.L.heatLayer || !points.length) return;
 
     const heatData = points.map((loc) => [
       loc.lat,
       loc.lng,
-      Math.min(Math.max((loc.risk || 10) / 100, 0.1), 1.0),
+      Math.min(Math.max((loc.risk || 20) / 100, 0.35), 1.0),
     ]);
 
     const heatLayer = window.L.heatLayer(heatData, {
-      radius: 40,
+      radius: 45,
       blur: 25,
       maxZoom: 10,
       max: 1.0,
+      minOpacity: 0.45,
       gradient: {
         0.2: "#00e5ff",
         0.4: "#22c55e",
@@ -165,8 +166,18 @@ function HeatmapLayer({ points }) {
 
     heatLayer.addTo(map);
 
+    // Auto-fit to focus on North-East India cluster immediately
+    try {
+      const bounds = window.L.latLngBounds(points.map((p) => [p.lat, p.lng]));
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
+    } catch {
+      map.setView([25.7, 92.5], 6.5);
+    }
+
     return () => {
-      map.removeLayer(heatLayer);
+      if (map && heatLayer) {
+        map.removeLayer(heatLayer);
+      }
     };
   }, [map, points]);
 
@@ -718,6 +729,15 @@ export default function App() {
         setLiveRiskLevel(result.riskLevel);
         setRiskHistory((prev) => [...prev.slice(-9), result.riskScore]);
 
+        // Dynamically update locationsList so the Heatmap updates its intensity in real time!
+        setLocationsList((prevList) =>
+          prevList.map((loc) =>
+            loc.name === selected.name
+              ? { ...loc, rainfall: nextRainfall, risk: result.riskScore, level: result.riskLevel }
+              : loc
+          )
+        );
+
         if (result.riskScore >= 80 && liveRiskScore < 80) {
           if (typeof playEmergencySiren === "function") {
             playEmergencySiren();
@@ -1055,7 +1075,6 @@ export default function App() {
           </div>
 
           <div className="top-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            {/* Inline Network Status Badge */}
             <div
               style={{
                 display: "inline-flex",
@@ -1149,7 +1168,7 @@ export default function App() {
                 </div>
 
                 <div className="map-wrapper">
-                  <MapContainer center={[25.7, 92.5]} zoom={6} scrollWheelZoom={true} className="map">
+                  <MapContainer center={[25.7, 92.5]} zoom={6.5} scrollWheelZoom={true} className="map">
                     <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <MapController location={selected} />
 
@@ -1932,7 +1951,6 @@ export default function App() {
                     </div>
                     <p style={{ fontSize: "12px", color: "#c7d0d8", margin: "6px 0 0" }}>{r.description}</p>
 
-                    {/* Ground Media Rendering */}
                     {r.mediaUrl && (
                       <div style={{ marginTop: "10px" }}>
                         {r.mediaType === "VIDEO" ? (
