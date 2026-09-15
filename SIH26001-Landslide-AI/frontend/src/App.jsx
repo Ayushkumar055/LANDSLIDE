@@ -86,6 +86,24 @@ function getRiskColor(risk) {
   return "#22c55e";
 }
 
+function getAlertLocalizedTitle(al, lang) {
+  const isHindi = lang === "hi";
+  const level = al.level || al.type || "ALERT";
+  const levelHindi =
+    level === "CRITICAL"
+      ? "गंभीर"
+      : level === "HIGH"
+      ? "उच्च"
+      : level === "MODERATE"
+      ? "मध्यम"
+      : "सामान्य";
+
+  if (isHindi) {
+    return `⚠ भूस्खलन जोखिम चेतावनी - ${levelHindi}`;
+  }
+  return al.title || `Landslide Risk Alert - ${level}`;
+}
+
 function getDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -156,7 +174,6 @@ function HeatmapLayer({ points }) {
 
         return (
           <div key={`heat-node-${loc.name}`}>
-            {/* Outer Diffusion Halo */}
             <CircleMarker
               center={[loc.lat, loc.lng]}
               radius={55}
@@ -166,7 +183,6 @@ function HeatmapLayer({ points }) {
                 fillOpacity: 0.18,
               }}
             />
-            {/* Mid Density Glow */}
             <CircleMarker
               center={[loc.lat, loc.lng]}
               radius={34}
@@ -176,7 +192,6 @@ function HeatmapLayer({ points }) {
                 fillOpacity: 0.40,
               }}
             />
-            {/* Intense Thermal Core */}
             <CircleMarker
               center={[loc.lat, loc.lng]}
               radius={16}
@@ -428,7 +443,7 @@ export default function App() {
     } else if (userRole === "ndrf") {
       setAdminUser({ name: "NDRF Unit (Session)", role: "NDRF Response Unit" });
     }
-  }, []);
+  }, [userRole]);
 
   useEffect(() => {
     if (currentTab !== "sensors") return;
@@ -530,7 +545,7 @@ export default function App() {
   }
 
   async function requestNotificationPermission() {
-    if (typeof Notification !== "undefined") return;
+    if (typeof Notification === "undefined") return;
     const result = await Notification.requestPermission();
     setNotifPermission(result);
     if (result === "granted") {
@@ -585,7 +600,7 @@ export default function App() {
     if (!canManage && ["monitoring", "analytics", "history", "sensors"].includes(currentTab)) {
       setCurrentTab("dashboard");
     }
-  }, [canManage]);
+  }, [canManage, currentTab]);
 
   useEffect(() => {
     setLiveWeather(null);
@@ -864,14 +879,13 @@ export default function App() {
   async function issueEarlyWarning() {
     const isHindi = i18n.language === "hi";
 
-    // Dynamic Title aur Message language ke hisaab se
     const alertTitle = isHindi
       ? `भूस्खलन जोखिम चेतावनी - ${liveRiskLevel}`
       : `Landslide Risk Alert - ${liveRiskLevel}`;
 
     const alertMessage = isHindi
-      ? `🚨 आपातकालीन चेतावनी: ${selected.name}, ${selected.state} में भूस्खलन जोखिम स्तर ${liveRiskLevel} (${liveRiskScore}/100) दर्ज हुआ है। तुरंत सुरक्षित आश्रय की ओर प्रस्थान करें।`
-      : `🚨 EMERGENCY ALERT: Critical landslide risk level ${liveRiskLevel} (${liveRiskScore}/100) detected in ${selected.name}, ${selected.state}. Evacuate to safe shelter immediately.`;
+      ? `🚨 आपातकालीन चेतावनी: ${selected.name}, ${selected.state} में भूस्खलन जोखिम स्तर ${liveRiskLevel} (${liveRiskScore}/100) दर्ज हुआ है। तुरंत सुरक्षित स्थान की ओर जाएं।`
+      : `🚨 EMERGENCY ALERT: Critical landslide risk level ${liveRiskLevel} (${liveRiskScore}/100) detected in ${selected.name}, ${selected.state}. Evacuate immediately.`;
 
     const alertData = {
       location: `${selected.name}, ${selected.state}`,
@@ -1094,11 +1108,11 @@ export default function App() {
             <div>
               <p className="eyebrow">NORTH EASTERN REGION • INDIA</p>
               <h2>
-                {currentTab === "dashboard" && "Landslide Risk Monitoring"}
-                {currentTab === "monitoring" && "Geospatial Risk Monitoring Network"}
-                {currentTab === "warnings" && "Early Warning & Disaster Broadcast Log"}
-                {currentTab === "analytics" && "Susceptibility & Telemetry Analytics"}
-                {currentTab === "history" && "Geological Landslide Event Archive"}
+                {currentTab === "dashboard" && (i18n.language === "hi" ? "भूस्खलन जोखिम निगरानी" : "Landslide Risk Monitoring")}
+                {currentTab === "monitoring" && (i18n.language === "hi" ? "भू-स्थानिक जोखिम निगरानी नेटवर्क" : "Geospatial Risk Monitoring Network")}
+                {currentTab === "warnings" && (i18n.language === "hi" ? "प्रारंभिक चेतावनी एवं आपदा प्रसारण लॉग" : "Early Warning & Disaster Broadcast Log")}
+                {currentTab === "analytics" && (i18n.language === "hi" ? "सुभेद्यता एवं टेलीमेट्री विश्लेषण" : "Susceptibility & Telemetry Analytics")}
+                {currentTab === "history" && (i18n.language === "hi" ? "भूवैज्ञानिक भूस्खलन घटना संग्रह" : "Geological Landslide Event Archive")}
               </h2>
             </div>
           </div>
@@ -1157,7 +1171,7 @@ export default function App() {
 
             <div className="live"><span></span>LIVE MONITORING</div>
             <button className="icon-btn" onClick={() => setCurrentTab("warnings")}>🔔</button>
-            <div className="date"><strong>24 AUG 2026</strong><small>22:32 IST</small></div>
+            <div className="date"><strong>15 SEP 2026</strong><small>20:41 IST</small></div>
           </div>
         </header>
 
@@ -1167,26 +1181,29 @@ export default function App() {
             <section className="stats">
               <div className="stat-card" onClick={() => setCurrentTab("monitoring")} style={{ cursor: "pointer" }}>
                 <div className="stat-icon red">⚠</div>
-                <div><span>CRITICAL ZONES</span><strong>{String(criticalCount).padStart(2, "0")}</strong><small>AI detected</small></div>
+                <div><span>{i18n.language === "hi" ? "गंभीर क्षेत्र" : "CRITICAL ZONES"}</span><strong>{String(criticalCount).padStart(2, "0")}</strong><small>AI detected</small></div>
               </div>
               <div className="stat-card" onClick={() => setCurrentTab("monitoring")} style={{ cursor: "pointer" }}>
                 <div className="stat-icon orange">◉</div>
-                <div><span>HIGH RISK AREAS</span><strong>{String(highCount).padStart(2, "0")}</strong><small>Across NER</small></div>
+                <div><span>{i18n.language === "hi" ? "उच्च जोखिम क्षेत्र" : "HIGH RISK AREAS"}</span><strong>{String(highCount).padStart(2, "0")}</strong><small>Across NER</small></div>
               </div>
               <div className="stat-card" onClick={() => setCurrentTab("monitoring")} style={{ cursor: "pointer" }}>
                 <div className="stat-icon blue">⌁</div>
-                <div><span>ACTIVE MONITORING</span><strong>{String(locationsList.length).padStart(2, "0")}</strong><small>Locations monitored</small></div>
+                <div><span>{i18n.language === "hi" ? "सक्रिय स्टेशन" : "ACTIVE MONITORING"}</span><strong>{String(locationsList.length).padStart(2, "0")}</strong><small>Locations monitored</small></div>
               </div>
               <div className="stat-card" onClick={() => setCurrentTab("warnings")} style={{ cursor: "pointer" }}>
                 <div className="stat-icon green">✓</div>
-                <div><span>ALERTS ISSUED</span><strong>{String(alerts.length).padStart(2, "0")}</strong><small>Current session</small></div>
+                <div><span>{i18n.language === "hi" ? "जारी चेतावनियाँ" : "ALERTS ISSUED"}</span><strong>{String(alerts.length).padStart(2, "0")}</strong><small>Current session</small></div>
               </div>
             </section>
 
             <section className="dashboard-grid">
               <div className="panel map-panel">
                 <div className="panel-header">
-                  <div><h3>Regional Risk Map</h3><p>AI-powered landslide susceptibility monitoring</p></div>
+                  <div>
+                    <h3>{i18n.language === "hi" ? "क्षेत्रीय जोखिम मानचित्र" : "Regional Risk Map"}</h3>
+                    <p>{i18n.language === "hi" ? "एआई-आधारित भूस्खलन संवेदनशीलता निगरानी" : "AI-powered landslide susceptibility monitoring"}</p>
+                  </div>
                   <div className="map-controls">
                     <button className={`control ${mapMode === "risk" ? "active" : ""}`} onClick={() => setMapMode("risk")}>Risk</button>
                     <button className={`control ${mapMode === "heat" ? "active" : ""}`} onClick={() => setMapMode("heat")}>🔥 Heatmap</button>
@@ -1201,10 +1218,10 @@ export default function App() {
                     <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <MapController location={selected} />
 
-                    {/* DYNAMIC HEATMAP LAYER */}
+                    {/* DYNAMIC ZERO-FAIL HEATMAP LAYER */}
                     {mapMode === "heat" && <HeatmapLayer points={locationsList} />}
 
-                    {/* MARKERS DISPLAYED IN NON-HEATMAP MODES */}
+                    {/* MARKERS IN NON-HEATMAP MODES */}
                     {mapMode !== "heat" &&
                       locationsList.map((location) => {
                         const markerColor = getMarkerColor(location);
@@ -1264,7 +1281,10 @@ export default function App() {
               {/* AI RISK ANALYSIS */}
               <div className="panel risk-panel">
                 <div className="panel-header">
-                  <div><h3>AI Risk Analysis</h3><p>Selected monitoring location</p></div>
+                  <div>
+                    <h3>{i18n.language === "hi" ? "एआई जोखिम विश्लेषण" : "AI Risk Analysis"}</h3>
+                    <p>{i18n.language === "hi" ? "चयनित निगरानी केंद्र" : "Selected monitoring location"}</p>
+                  </div>
                   <span className="ai-badge">AI</span>
                 </div>
 
@@ -1278,7 +1298,7 @@ export default function App() {
                     <div><strong>{liveRiskScore}</strong><span>/100</span></div>
                   </div>
                   <div>
-                    <span className="risk-label">CURRENT RISK</span>
+                    <span className="risk-label">{i18n.language === "hi" ? "वर्तमान जोखिम" : "CURRENT RISK"}</span>
                     <h4 style={{ color: getRiskColor(liveRiskScore) }}>{liveRiskLevel}</h4>
                     <p>Prototype risk engine</p>
                   </div>
@@ -1286,24 +1306,24 @@ export default function App() {
 
                 <div className="factors">
                   <div className="factor">
-                    <div><span>🌧 Rainfall</span><strong>{Math.round(simulatedRainfall)} mm</strong></div>
+                    <div><span>🌧 {i18n.language === "hi" ? "वर्षा" : "Rainfall"}</span><strong>{Math.round(simulatedRainfall)} mm</strong></div>
                     <div className="progress"><span style={{ width: `${Math.min((simulatedRainfall / 160) * 100, 100)}%` }}></span></div>
                   </div>
                   <div className="factor">
-                    <div><span>⛰ Terrain Slope</span><strong>{selected.slope}°</strong></div>
+                    <div><span>⛰ {i18n.language === "hi" ? "ढलान" : "Terrain Slope"}</span><strong>{selected.slope}°</strong></div>
                     <div className="progress"><span style={{ width: `${selected.slopeScore}%` }}></span></div>
                   </div>
                   <div className="factor">
-                    <div><span>🌍 Soil Stability</span><strong>{selected.soil}</strong></div>
+                    <div><span>🌍 {i18n.language === "hi" ? "मृदा स्थिरता" : "Soil Stability"}</span><strong>{selected.soil}</strong></div>
                     <div className="progress"><span style={{ width: `${selected.soilScore}%` }}></span></div>
                   </div>
                   <div className="factor">
-                    <div><span>🏔 Elevation</span><strong>{selected.elevation} m</strong></div>
+                    <div><span>🏔 {i18n.language === "hi" ? "ऊंचाई" : "Elevation"}</span><strong>{selected.elevation} m</strong></div>
                     <div className="progress"><span style={{ width: `${Math.min(selected.elevation / 20, 100)}%` }}></span></div>
                   </div>
                 </div>
 
-                {/* REAL SATELLITE IMAGERY ANALYSIS */}
+                {/* SATELLITE IMAGERY ANALYSIS */}
                 <div
                   style={{
                     margin: "14px 16px",
@@ -1357,23 +1377,6 @@ export default function App() {
                         >
                           View Full GIS Overlay ↗
                         </a>
-                        <a
-                          href="http://127.0.0.1:8000/export/geojson"
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            display: "inline-block",
-                            fontSize: "11px",
-                            color: "#22c55e",
-                            border: "1px solid rgba(34,197,94,0.4)",
-                            padding: "5px 10px",
-                            borderRadius: "5px",
-                            fontWeight: "bold",
-                            textDecoration: "none",
-                          }}
-                        >
-                          GeoJSON Feed
-                        </a>
                       </div>
                     </>
                   ) : (
@@ -1381,9 +1384,6 @@ export default function App() {
                       <p style={{ fontSize: "11px", color: "#ff7083", margin: "4px 0 8px" }}>
                         ⚠ {satelliteError || "Satellite backend disconnected."}
                       </p>
-                      <small style={{ fontSize: "10px", color: "#7f91a8" }}>
-                        Make sure FastAPI is running on port 8000: <code>python -m uvicorn app:app --reload</code>
-                      </small>
                     </div>
                   )}
                 </div>
@@ -1492,22 +1492,6 @@ export default function App() {
                     {mlLoading ? "🤖 AI Model Analyzing..." : "🤖 Predict Landslide Risk"}
                   </button>
 
-                  {mlError && (
-                    <div
-                      style={{
-                        marginTop: "10px",
-                        padding: "9px",
-                        borderRadius: "6px",
-                        background: "rgba(255,48,79,0.1)",
-                        border: "1px solid rgba(255,48,79,0.3)",
-                        color: "#ff7083",
-                        fontSize: "10px",
-                      }}
-                    >
-                      ⚠ {mlError}
-                    </div>
-                  )}
-
                   {mlPrediction && (
                     <div
                       style={{
@@ -1582,11 +1566,6 @@ export default function App() {
                         <div style={{ fontSize: "7px", color: "#5d6873", letterSpacing: "0.5px" }}>STRAIGHT-LINE DIST.</div>
                       </div>
                     </div>
-                    {(selected.level === "CRITICAL" || selected.level === "HIGH") && (
-                      <div style={{ marginTop: "8px", fontSize: "10px", color: "#42d5ac" }}>
-                        ● Evacuation route active on map
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -1653,7 +1632,7 @@ export default function App() {
                   </button>
                 ) : (
                   <div style={{ margin: "0 16px 15px", padding: "10px", borderRadius: "6px", border: "1px dashed rgba(255,255,255,0.15)", color: "#7f91a8", fontSize: "10px", textAlign: "center" }}>
-                    🔒 Only District Officers / NDRF can issue official warnings. <button onClick={() => startAuthorityLogin("district_officer")} style={{ color: "#38bdf8", background: "none", border: "none", cursor: "pointer", fontSize: "10px", textDecoration: "underline" }}>Login as Authority</button>
+                    🔒 Only District Officers / NDRF can issue official warnings.
                   </div>
                 )}
               </div>
@@ -1663,134 +1642,47 @@ export default function App() {
 
         {/* ROAD CONNECTIVITY MONITORING */}
         {activeTab === 'monitoring' && (
-          <section
-            className="panel"
-            style={{
-              marginTop: "16px",
-              padding: "20px",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "18px",
-                flexWrap: "wrap",
-                gap: "12px",
-              }}
-            >
+          <section className="panel" style={{ marginTop: "16px", padding: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", flexWrap: "wrap", gap: "12px" }}>
               <div>
-                <h3 style={{ fontSize: "18px", color: "#38bdf8", margin: 0 }}>
-                  🛣️ Road Connectivity Monitoring
-                </h3>
-                <p style={{ color: "#7f91a8", fontSize: "12px", marginTop: "5px" }}>
-                  Landslide-sensitive transportation corridors across the North Eastern Region
-                </p>
+                <h3 style={{ fontSize: "18px", color: "#38bdf8", margin: 0 }}>🛣️ Road Connectivity Monitoring</h3>
+                <p style={{ color: "#7f91a8", fontSize: "12px", marginTop: "5px" }}>Landslide-sensitive transportation corridors across the North Eastern Region</p>
               </div>
-
-              <div style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>
-                ● {roads.length} ROADS MONITORED
-              </div>
+              <div style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>● {roads.length} ROADS MONITORED</div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: "12px",
-                marginBottom: "18px",
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "18px" }}>
               <div style={{ padding: "14px", borderRadius: "8px", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
                 <div style={{ color: "#7f91a8", fontSize: "10px" }}>🟢 OPEN</div>
                 <strong style={{ fontSize: "24px", color: "#22c55e" }}>{openRoads}</strong>
               </div>
-
               <div style={{ padding: "14px", borderRadius: "8px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}>
                 <div style={{ color: "#7f91a8", fontSize: "10px" }}>🟡 RESTRICTED</div>
                 <strong style={{ fontSize: "24px", color: "#f59e0b" }}>{restrictedRoads}</strong>
               </div>
-
               <div style={{ padding: "14px", borderRadius: "8px", background: "rgba(255,48,79,0.08)", border: "1px solid rgba(255,48,79,0.25)" }}>
                 <div style={{ color: "#7f91a8", fontSize: "10px" }}>🔴 BLOCKED</div>
                 <strong style={{ fontSize: "24px", color: "#ff304f" }}>{blockedRoads}</strong>
               </div>
             </div>
 
-            {roads.length === 0 ? (
-              <div style={{ padding: "20px", textAlign: "center", color: "#7f91a8" }}>
-                Loading road connectivity data...
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                  gap: "12px",
-                }}
-              >
-                {roads.map((road) => {
-                  const statusColor =
-                    road.status === "OPEN"
-                      ? "#22c55e"
-                      : road.status === "RESTRICTED"
-                      ? "#f59e0b"
-                      : "#ff304f";
-
-                  return (
-                    <div
-                      key={road.id}
-                      style={{
-                        padding: "15px",
-                        borderRadius: "10px",
-                        background: "rgba(255,255,255,0.03)",
-                        border: `1px solid ${statusColor}33`,
-                        borderLeft: `4px solid ${statusColor}`,
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
-                        <div>
-                          <strong style={{ fontSize: "14px" }}>🛣️ {road.name}</strong>
-                          <div style={{ fontSize: "10px", color: "#7f91a8", marginTop: "3px" }}>{road.state}</div>
-                        </div>
-
-                        <span
-                          style={{
-                            fontSize: "9px",
-                            fontWeight: "bold",
-                            padding: "4px 8px",
-                            height: "fit-content",
-                            borderRadius: "12px",
-                            background: `${statusColor}22`,
-                            color: statusColor,
-                          }}
-                        >
-                          {road.status}
-                        </span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
+              {roads.map((road) => {
+                const statusColor = road.status === "OPEN" ? "#22c55e" : road.status === "RESTRICTED" ? "#f59e0b" : "#ff304f";
+                return (
+                  <div key={road.id} style={{ padding: "15px", borderRadius: "10px", background: "rgba(255,255,255,0.03)", border: `1px solid ${statusColor}33`, borderLeft: `4px solid ${statusColor}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                      <div>
+                        <strong style={{ fontSize: "14px" }}>🛣️ {road.name}</strong>
+                        <div style={{ fontSize: "10px", color: "#7f91a8", marginTop: "3px" }}>{road.state}</div>
                       </div>
-
-                      <div style={{ marginTop: "12px", fontSize: "12px", color: "#c7d0d8" }}>
-                        📍 {road.startPoint} → {road.endPoint}
-                      </div>
-
-                      <div style={{ marginTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "9px", color: "#7f91a8" }}>LANDSLIDE RISK</span>
-                        <span style={{ fontSize: "10px", fontWeight: "bold", color: getRiskColor(road.riskLevel) }}>
-                          {road.riskLevel}
-                        </span>
-                      </div>
-
-                      {road.description && (
-                        <p style={{ fontSize: "10px", color: "#7f91a8", margin: "10px 0 0", lineHeight: "1.5" }}>
-                          {road.description}
-                        </p>
-                      )}
+                      <span style={{ fontSize: "9px", fontWeight: "bold", padding: "4px 8px", borderRadius: "12px", background: `${statusColor}22`, color: statusColor }}>{road.status}</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                    <div style={{ marginTop: "12px", fontSize: "12px", color: "#c7d0d8" }}>📍 {road.startPoint} → {road.endPoint}</div>
+                  </div>
+                );
+              })}
+            </div>
           </section>
         )}
 
@@ -1821,57 +1713,6 @@ export default function App() {
                       </Popup>
                     </CircleMarker>
                   ))}
-                  {shelters.map((shelter) => (
-                    <CircleMarker
-                      key={`mon-shelter-${shelter.id || shelter.name}`}
-                      center={[shelter.lat, shelter.lng]}
-                      radius={6}
-                      pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 0.85, weight: 1.5 }}
-                    >
-                      <Popup>
-                        <strong>🏠 {shelter.name}</strong><br />
-                        {shelter.type} • Capacity {shelter.capacity}
-                      </Popup>
-                    </CircleMarker>
-                  ))}
-
-                  {roads.map((road) => {
-                    const roadColor =
-                      road.status === "OPEN"
-                        ? "#22c55e"
-                        : road.status === "RESTRICTED"
-                        ? "#f59e0b"
-                        : "#ff304f";
-
-                    return (
-                      <CircleMarker
-                        key={`road-${road.id}`}
-                        center={[road.lat, road.lng]}
-                        radius={9}
-                        pathOptions={{
-                          color: roadColor,
-                          fillColor: roadColor,
-                          fillOpacity: 0.9,
-                          weight: 2,
-                        }}
-                      >
-                        <Popup>
-                          <div style={{ minWidth: "180px" }}>
-                            <strong>🛣️ {road.name}</strong><br />
-                            <span style={{ fontSize: "12px" }}>📍 {road.startPoint} → {road.endPoint}</span><br /><br />
-                            <strong>Status: </strong><span style={{ color: roadColor }}>{road.status}</span><br />
-                            <strong>Risk Level: </strong><span style={{ color: getRiskColor(road.riskLevel) }}>{road.riskLevel}</span>
-                            {road.description && (
-                              <>
-                                <br /><br />
-                                <span style={{ fontSize: "11px" }}>{road.description}</span>
-                              </>
-                            )}
-                          </div>
-                        </Popup>
-                      </CircleMarker>
-                    );
-                  })}
                 </MapContainer>
               </div>
 
@@ -1905,14 +1746,18 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 3: EARLY WARNINGS */}
+        {/* VIEW 3: EARLY WARNINGS (MULTILINGUAL ALERT LOGS) */}
         {currentTab === "warnings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div className="panel" style={{ padding: "20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <h3 style={{ fontSize: "18px", color: "#ff304f" }}>🚨 Early Warning & Disaster Broadcast Logs</h3>
-                  <p style={{ color: "#7f91a8", fontSize: "13px" }}>Dispatches forwarded to NDRF, SDRF, and SMS Disaster Relay</p>
+                  <h3 style={{ fontSize: "18px", color: "#ff304f" }}>
+                    {i18n.language === "hi" ? "🚨 प्रारंभिक चेतावनी एवं आपदा प्रसारण लॉग" : "🚨 Early Warning & Disaster Broadcast Logs"}
+                  </h3>
+                  <p style={{ color: "#7f91a8", fontSize: "13px" }}>
+                    {i18n.language === "hi" ? "एनडीआरएफ, एसडीआरएफ एवं एसएमएस आपदा रिले नेटवर्क को प्रेषित" : "Dispatches forwarded to NDRF, SDRF, and SMS Disaster Relay"}
+                  </p>
                 </div>
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button onClick={() => exportAlertsToCSV(alerts)} style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#e2e8f0", fontWeight: "600", cursor: "pointer", fontSize: "13px" }}>📥 Export CSV</button>
@@ -1921,25 +1766,44 @@ export default function App() {
                 </div>
               </div>
 
+              {/* DYNAMIC MULTILINGUAL ALERT CARDS */}
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {alerts.map((al) => (
-                  <div key={al.id} style={{ padding: "16px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", borderLeft: `5px solid ${getRiskColor(al.level || al.type)}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <span style={{ fontSize: "16px" }}>⚠</span>
-                        <strong style={{ fontSize: "15px" }}>{al.title || `Landslide Risk Alert - ${al.level}`}</strong>
-                        <span style={{ fontSize: "11px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px", background: getRiskColor(al.level || al.type), color: "#0b111e" }}>{al.level || al.type}</span>
+                {alerts.map((al) => {
+                  const isHindi = i18n.language === "hi";
+                  const levelVal = al.level || al.type;
+                  const levelLabel = isHindi
+                    ? (levelVal === "CRITICAL" ? "अति-संवेदनशील" : levelVal === "HIGH" ? "उच्च जोखिम" : levelVal === "MODERATE" ? "मध्यम" : "सामान्य")
+                    : levelVal;
+
+                  return (
+                    <div key={al.id} style={{ padding: "16px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", borderLeft: `5px solid ${getRiskColor(levelVal)}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <span style={{ fontSize: "16px" }}>⚠</span>
+                          <strong style={{ fontSize: "15px", color: "#f8fafc" }}>
+                            {getAlertLocalizedTitle(al, i18n.language)}
+                          </strong>
+                          <span style={{ fontSize: "11px", fontWeight: "bold", padding: "2px 6px", borderRadius: "4px", background: getRiskColor(levelVal), color: "#0b111e" }}>
+                            {levelLabel}
+                          </span>
+                        </div>
+                        <div style={{ color: "#7f91a8", fontSize: "13px", marginTop: "4px" }}>
+                          {isHindi ? "स्थान: " : "Location: "}<b style={{ color: "#e2e8f0" }}>{al.location}</b> | 
+                          {isHindi ? " स्कोर: " : " Score: "}<b>{al.score}/100</b> | 
+                          {isHindi ? " वर्षा: " : " Rain: "}<b>{al.rainfall} mm</b>
+                        </div>
                       </div>
-                      <div style={{ color: "#7f91a8", fontSize: "13px", marginTop: "4px" }}>
-                        Location: <b style={{ color: "#e2e8f0" }}>{al.location}</b> | Score: <b>{al.score}/100</b> | Rain: <b>{al.rainfall} mm</b>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "12px", color: "#7f91a8" }}>
+                          {al.timestamp || al.time || new Date(al.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                        <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>
+                          ● {isHindi ? "चेतावनी प्रसारित (SMS / NDRF)" : "Broadcast Dispatched"}
+                        </span>
                       </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "12px", color: "#7f91a8" }}>{al.timestamp || al.time || new Date(al.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-                      <span style={{ fontSize: "11px", color: "#22c55e", fontWeight: "bold" }}>● Broadcast Dispatched</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -1981,18 +1845,10 @@ export default function App() {
                     {r.mediaUrl && (
                       <div style={{ marginTop: "10px" }}>
                         {r.mediaType === "VIDEO" ? (
-                          <video
-                            src={r.mediaUrl}
-                            controls
-                            style={{ width: "100%", maxHeight: "180px", borderRadius: "6px", background: "#000" }}
-                          />
+                          <video src={r.mediaUrl} controls style={{ width: "100%", maxHeight: "180px", borderRadius: "6px", background: "#000" }} />
                         ) : (
                           <a href={r.mediaUrl} target="_blank" rel="noreferrer">
-                            <img
-                              src={r.mediaUrl}
-                              alt="Ground proof"
-                              style={{ width: "100%", maxHeight: "180px", objectFit: "cover", borderRadius: "6px" }}
-                            />
+                            <img src={r.mediaUrl} alt="Ground proof" style={{ width: "100%", maxHeight: "180px", objectFit: "cover", borderRadius: "6px" }} />
                           </a>
                         )}
                       </div>
@@ -2155,21 +2011,12 @@ export default function App() {
                             </div>
                           ))}
                         </div>
-                        <div style={{ fontSize: "9px", color: "#5d6873", marginTop: "10px" }}>
-                          Last report: {new Date(d.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </div>
                       </div>
                     );
                   })}
                 </div>
               </>
             )}
-
-            <div style={{ margin: "16px 0 20px", padding: "10px 14px", borderRadius: "8px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", fontSize: "11px", color: "#7f91a8" }}>
-              ℹ️ {realSensorDevices.length > 0
-                ? "The stations below have no physical device registered yet, so they show a simulated fallback feed for demo purposes."
-                : "No real hardware devices have reported yet. Showing a simulated fallback feed — connect an ESP32/Arduino unit to POST /api/sensors/ingest to go live."}
-            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
               {sensorNetwork.map((station) => {
@@ -2203,9 +2050,6 @@ export default function App() {
                         <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", borderRadius: "6px", background: "rgba(0,0,0,0.2)" }}>
                           <div>
                             <div style={{ fontSize: "11px", fontWeight: 600 }}>{s.type}</div>
-                            <div style={{ fontSize: "9px", color: s.status === "OFFLINE" ? "#ff8a00" : "#5d6873" }}>
-                              {s.status === "OFFLINE" ? "Signal lost" : `Threshold ${s.threshold} ${s.unit}`}
-                            </div>
                           </div>
                           <strong style={{
                             fontSize: "14px",
@@ -2230,7 +2074,7 @@ export default function App() {
               <div style={{ fontSize: "40px", marginBottom: "8px" }}>📱</div>
               <h3 style={{ fontSize: "20px", marginBottom: "6px" }}>Get LandslideAI on Your Phone</h3>
               <p style={{ color: "#7f91a8", fontSize: "13px", marginBottom: "28px" }}>
-                Scan the QR code below with your phone's camera to open LandslideAI and install it as an app — get instant access to live risk maps, evacuation routes, and the SOS button from your home screen.
+                Scan the QR code below with your phone's camera to install the PWA.
               </p>
 
               <div style={{ display: "inline-block", padding: "16px", background: "#fff", borderRadius: "14px", marginBottom: "20px" }}>
@@ -2242,19 +2086,8 @@ export default function App() {
                   width={240}
                   height={240}
                   style={{ display: "block", width: "240px", height: "240px" }}
-                  onError={(e) => {
-                    const currentUrl = encodeURIComponent(
-                      typeof window !== "undefined" ? window.location.origin : "https://vercel.app"
-                    );
-                    e.target.onerror = null;
-                    e.target.src = `https://quickchart.io/qr?text=${currentUrl}&size=240`;
-                  }}
                 />
               </div>
-
-              <p style={{ color: "#42d5ac", fontSize: "12px", fontWeight: "bold", marginBottom: "20px" }}>
-                {typeof window !== "undefined" ? window.location.host : "landslide-ai.vercel.app"}
-              </p>
 
               {isInstalled ? (
                 <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(34,197,94,.1)", border: "1px solid rgba(34,197,94,.35)", color: "#22c55e", fontSize: "12px", fontWeight: "bold", marginBottom: "20px" }}>
@@ -2272,9 +2105,6 @@ export default function App() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: "8px", background: "rgba(56,189,248,.05)", border: "1px solid rgba(56,189,248,.2)", marginBottom: "24px" }}>
                 <div style={{ textAlign: "left" }}>
                   <strong style={{ fontSize: "12px", color: "#38bdf8" }}>🔔 Critical Alert Notifications</strong>
-                  <div style={{ fontSize: "10px", color: "#7f91a8", marginTop: "2px" }}>
-                    {notifPermission === "granted" ? "Enabled — you'll be notified in-browser on Critical/High alerts" : notifPermission === "denied" ? "Blocked in browser settings" : "Get notified even when the tab is in the background"}
-                  </div>
                 </div>
                 {notifPermission !== "granted" && notifPermission !== "unsupported" && (
                   <button
@@ -2286,19 +2116,6 @@ export default function App() {
                 )}
                 {notifPermission === "granted" && <span style={{ color: "#22c55e", fontSize: "14px" }}>✓</span>}
               </div>
-
-              <div style={{ textAlign: "left", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "18px 20px" }}>
-                <strong style={{ fontSize: "12px", color: "#38bdf8", letterSpacing: "0.5px" }}>HOW TO INSTALL</strong>
-                <div style={{ marginTop: "12px", fontSize: "12px", color: "#c7d0d8", lineHeight: "1.7" }}>
-                  <strong style={{ color: "#e2e8f0" }}>Android (Chrome):</strong> After the page opens, tap the ⋮ menu → "Add to Home screen" / "Install app".
-                  <br /><br />
-                  <strong style={{ color: "#e2e8f0" }}>iPhone (Safari):</strong> After the page opens, tap the Share icon → "Add to Home Screen".
-                </div>
-              </div>
-
-              <p style={{ marginTop: "14px", fontSize: "10px", color: "#5d6873" }}>
-                Once installed, the app shell loads even with a weak or no connection — live data (risk scores, weather, shelters) still needs a network connection to refresh.
-              </p>
             </div>
           </div>
         )}
@@ -2315,64 +2132,28 @@ export default function App() {
         <button
           onClick={() => setShowDialModal(true)}
           title="Emergency Quick Dial (NDRF / SDMA / DEOC)"
-          style={{
-            width: "56px",
-            height: "56px",
-            borderRadius: "50%",
-            border: "none",
-            background: "#ff304f",
-            color: "#fff",
-            fontSize: "22px",
-            fontWeight: "bold",
-            boxShadow: "0 6px 20px rgba(255,48,79,0.45)",
-            cursor: "pointer",
-            display: "grid",
-            placeItems: "center"
-          }}
+          style={{ width: "56px", height: "56px", borderRadius: "50%", border: "none", background: "#ff304f", color: "#fff", fontSize: "22px", fontWeight: "bold", boxShadow: "0 6px 20px rgba(255,48,79,0.45)", cursor: "pointer", display: "grid", placeItems: "center" }}
         >
           📞
         </button>
 
         <button
           onClick={() => setShowSosModal(true)}
-          title="Report a ground condition (road crack, tilt, muddy water)"
-          style={{
-            width: "58px",
-            height: "58px",
-            borderRadius: "50%",
-            border: "none",
-            background: "#f59e0b",
-            color: "#1a1204",
-            fontSize: "22px",
-            fontWeight: "bold",
-            boxShadow: "0 6px 20px rgba(245,158,11,0.45)",
-            cursor: "pointer",
-            display: "grid",
-            placeItems: "center"
-          }}
+          title="Report a ground condition"
+          style={{ width: "58px", height: "58px", borderRadius: "50%", border: "none", background: "#f59e0b", color: "#1a1204", fontSize: "22px", fontWeight: "bold", boxShadow: "0 6px 20px rgba(245,158,11,0.45)", cursor: "pointer", display: "grid", placeItems: "center" }}
         >
           🚩
         </button>
       </div>
 
-      {/* MODAL: EMERGENCY QUICK DIAL */}
       {showDialModal && (
-        <EmergencyDialGrid
-          selectedState={selected.state}
-          onClose={() => setShowDialModal(false)}
-        />
+        <EmergencyDialGrid selectedState={selected.state} onClose={() => setShowDialModal(false)} />
       )}
 
       {/* MODAL: CITIZEN SOS / COMMUNITY REPORT */}
       {showSosModal && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex",
-          justifyContent: "center", alignItems: "center", zIndex: 9999, backdropFilter: "blur(5px)"
-        }}>
-          <div style={{
-            background: "#131d31", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px",
-            width: "440px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto", padding: "24px", color: "#e2e8f0", boxShadow: "0 20px 50px rgba(0,0,0,0.6)"
-          }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, backdropFilter: "blur(5px)" }}>
+          <div style={{ background: "#131d31", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px", width: "440px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto", padding: "24px", color: "#e2e8f0", boxShadow: "0 20px 50px rgba(0,0,0,0.6)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "18px" }}>🚩</span>
@@ -2392,15 +2173,7 @@ export default function App() {
             </div>
 
             {!isOnline && (
-              <div style={{
-                padding: "8px 12px",
-                borderRadius: "6px",
-                background: "rgba(255,48,79,0.15)",
-                border: "1px solid #ff304f",
-                color: "#ff7083",
-                fontSize: "11px",
-                marginBottom: "12px"
-              }}>
+              <div style={{ padding: "8px 12px", borderRadius: "6px", background: "rgba(255,48,79,0.15)", border: "1px solid #ff304f", color: "#ff7083", fontSize: "11px", marginBottom: "12px" }}>
                 📶 <strong>No Network Connection:</strong> Your report will be stored safely on your device and automatically synced once signal is restored.
               </div>
             )}
@@ -2411,9 +2184,7 @@ export default function App() {
 
             {sosSubmitted ? (
               <div style={{ padding: "16px", borderRadius: "8px", background: "rgba(34,197,94,.1)", border: "1px solid rgba(34,197,94,.35)", color: "#22c55e", fontSize: "13px", textAlign: "center" }}>
-                {isOnline
-                  ? "✓ Report and ground media received. Thank you for helping keep your community safe!"
-                  : "✓ Report saved offline on your device! It will auto-upload when internet connection resumes."}
+                {isOnline ? "✓ Report received. Thank you!" : "✓ Report saved offline on your device!"}
               </div>
             ) : (
               <form onSubmit={handleSosSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -2444,122 +2215,21 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label style={{ fontSize: "12px", color: "#7f91a8", display: "block", marginBottom: "4px" }}>
-                    Visual Proof (Photo / Video)
-                  </label>
-                  <div style={{
-                    border: "1px dashed rgba(255,255,255,0.2)",
-                    borderRadius: "6px",
-                    padding: "12px",
-                    background: "#0b111e",
-                    textAlign: "center"
-                  }}>
-                    <input
-                      type="file"
-                      id="sos-media-input"
-                      accept="image/*,video/*"
-                      capture="environment"
-                      onChange={handleMediaChange}
-                      style={{ display: "none" }}
-                    />
-                    <label
-                      htmlFor="sos-media-input"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        padding: "6px 14px",
-                        borderRadius: "6px",
-                        background: "rgba(245, 158, 11, 0.15)",
-                        border: "1px solid rgba(245, 158, 11, 0.4)",
-                        color: "#f59e0b",
-                        cursor: "pointer"
-                      }}
-                    >
-                      📷 Take Photo / Choose File
-                    </label>
-
-                    {sosMediaFile && (
-                      <div style={{ marginTop: "10px" }}>
-                        <div style={{ fontSize: "11px", color: "#38bdf8", marginBottom: "6px" }}>
-                          Selected: {sosMediaFile.name} ({(sosMediaFile.size / (1024 * 1024)).toFixed(2)} MB)
-                        </div>
-                        {sosMediaPreview && sosMediaFile.type.startsWith("image") && (
-                          <img
-                            src={sosMediaPreview}
-                            alt="Incident Preview"
-                            style={{ width: "100%", maxHeight: "140px", objectFit: "cover", borderRadius: "6px" }}
-                          />
-                        )}
-                        {sosMediaPreview && sosMediaFile.type.startsWith("video") && (
-                          <video
-                            src={sosMediaPreview}
-                            controls
-                            style={{ width: "100%", maxHeight: "140px", borderRadius: "6px" }}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                    <label style={{ fontSize: "12px", color: "#7f91a8" }}>Description</label>
-                    {voiceSupported && (
-                      <button
-                        type="button"
-                        onClick={startVoiceReport}
-                        disabled={isListening}
-                        title="Speak your report instead of typing"
-                        style={{
-                          display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", fontWeight: 700,
-                          padding: "4px 9px", borderRadius: "20px", cursor: isListening ? "default" : "pointer",
-                          border: `1px solid ${isListening ? "rgba(255,48,79,.4)" : "rgba(56,189,248,.35)"}`,
-                          background: isListening ? "rgba(255,48,79,.12)" : "rgba(56,189,248,.1)",
-                          color: isListening ? "#ff304f" : "#38bdf8"
-                        }}
-                      >
-                        {isListening ? "🔴 Listening..." : "🎤 Speak Instead"}
-                      </button>
-                    )}
-                  </div>
+                  <label style={{ fontSize: "12px", color: "#7f91a8", display: "block", marginBottom: "4px" }}>Description</label>
                   <textarea
-                    placeholder="Describe what you observed, or tap 'Speak Instead' to report by voice..."
+                    placeholder="Describe what you observed..."
                     value={sosForm.description}
                     onChange={(e) => setSosForm({ ...sosForm, description: e.target.value })}
                     rows={3}
                     required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", background: "#0b111e", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", outline: "none", resize: "vertical", fontFamily: "inherit" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "6px", background: "#0b111e", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", outline: "none", resize: "vertical" }}
                   />
-                  {voiceError && (
-                    <div style={{ marginTop: "6px", fontSize: "10px", color: "#ff8a00" }}>⚠ {voiceError}</div>
-                  )}
-                  {!voiceSupported && (
-                    <div style={{ marginTop: "6px", fontSize: "10px", color: "#5d6873" }}>Voice input works best in Chrome (Android/desktop).</div>
-                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSosModal(false);
-                      setSosMediaFile(null);
-                      setSosMediaPreview(null);
-                    }}
-                    style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.06)", border: "none", color: "#e2e8f0", cursor: "pointer" }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={sosSubmitting}
-                    style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "#f59e0b", border: "none", color: "#1a1204", fontWeight: "bold", cursor: sosSubmitting ? "wait" : "pointer" }}
-                  >
-                    {sosSubmitting ? (isOnline ? "Uploading Media..." : "Saving Offline...") : isOnline ? "Submit Report" : "Save Report Offline"}
+                  <button type="button" onClick={() => setShowSosModal(false)} style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.06)", border: "none", color: "#e2e8f0", cursor: "pointer" }}>Cancel</button>
+                  <button type="submit" disabled={sosSubmitting} style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "#f59e0b", border: "none", color: "#1a1204", fontWeight: "bold", cursor: sosSubmitting ? "wait" : "pointer" }}>
+                    {sosSubmitting ? "Saving..." : isOnline ? "Submit Report" : "Save Report Offline"}
                   </button>
                 </div>
               </form>
@@ -2570,35 +2240,23 @@ export default function App() {
 
       {/* ROLE GATE */}
       {showRoleGate && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(5,8,12,0.96)", display: "flex",
-          justifyContent: "center", alignItems: "center", zIndex: 10000, backdropFilter: "blur(6px)"
-        }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(5,8,12,0.96)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 10000, backdropFilter: "blur(6px)" }}>
           <div style={{ width: "460px", maxWidth: "92vw", textAlign: "center" }}>
             <div style={{ fontSize: "36px", marginBottom: "6px" }}>⛰</div>
             <h2 style={{ margin: "0 0 4px", fontSize: "20px" }}>Landslide<span style={{ color: "#35d7b0" }}>AI</span></h2>
             <p style={{ color: "#7f91a8", fontSize: "13px", marginBottom: "26px" }}>Choose how you'd like to access the platform</p>
 
-            <button
-              onClick={continueAsCitizen}
-              style={{ width: "100%", textAlign: "left", padding: "16px 18px", marginBottom: "12px", borderRadius: "10px", border: "1px solid rgba(56,189,248,.3)", background: "rgba(56,189,248,.07)", color: "#e2e8f0", cursor: "pointer" }}
-            >
+            <button onClick={continueAsCitizen} style={{ width: "100%", textAlign: "left", padding: "16px 18px", marginBottom: "12px", borderRadius: "10px", border: "1px solid rgba(56,189,248,.3)", background: "rgba(56,189,248,.07)", color: "#e2e8f0", cursor: "pointer" }}>
               <strong style={{ display: "block", fontSize: "14px", color: "#38bdf8" }}>👤 Continue as Citizen</strong>
-              <small style={{ color: "#7f91a8" }}>View risk map, nearest shelters &amp; submit ground reports</small>
+              <small style={{ color: "#7f91a8" }}>View risk map, nearest shelters & submit ground reports</small>
             </button>
 
-            <button
-              onClick={() => startAuthorityLogin("district_officer")}
-              style={{ width: "100%", textAlign: "left", padding: "16px 18px", marginBottom: "12px", borderRadius: "10px", border: "1px solid rgba(245,158,11,.3)", background: "rgba(245,158,11,.06)", color: "#e2e8f0", cursor: "pointer" }}
-            >
+            <button onClick={() => startAuthorityLogin("district_officer")} style={{ width: "100%", textAlign: "left", padding: "16px 18px", marginBottom: "12px", borderRadius: "10px", border: "1px solid rgba(245,158,11,.3)", background: "rgba(245,158,11,.06)", color: "#e2e8f0", cursor: "pointer" }}>
               <strong style={{ display: "block", fontSize: "14px", color: "#f59e0b" }}>🏛️ District Officer Login</strong>
               <small style={{ color: "#7f91a8" }}>Issue warnings, manage citizen reports</small>
             </button>
 
-            <button
-              onClick={() => startAuthorityLogin("ndrf")}
-              style={{ width: "100%", textAlign: "left", padding: "16px 18px", borderRadius: "10px", border: "1px solid rgba(34,197,94,.3)", background: "rgba(34,197,94,.06)", color: "#e2e8f0", cursor: "pointer" }}
-            >
+            <button onClick={() => startAuthorityLogin("ndrf")} style={{ width: "100%", textAlign: "left", padding: "16px 18px", borderRadius: "10px", border: "1px solid rgba(34,197,94,.3)", background: "rgba(34,197,94,.06)", color: "#e2e8f0", cursor: "pointer" }}>
               <strong style={{ display: "block", fontSize: "14px", color: "#22c55e" }}>🚁 NDRF Response Unit Login</strong>
               <small style={{ color: "#7f91a8" }}>Full access — dispatch, sensors, evacuation coordination</small>
             </button>
@@ -2608,14 +2266,8 @@ export default function App() {
 
       {/* MODAL: ADMIN / AUTHORITY AUTHENTICATION */}
       {showAuthModal && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex",
-          justifyContent: "center", alignItems: "center", zIndex: 9999, backdropFilter: "blur(5px)"
-        }}>
-          <div style={{
-            background: "#131d31", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px",
-            width: "380px", padding: "24px", color: "#e2e8f0", boxShadow: "0 20px 50px rgba(0,0,0,0.6)"
-          }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, backdropFilter: "blur(5px)" }}>
+          <div style={{ background: "#131d31", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "12px", width: "380px", padding: "24px", color: "#e2e8f0", boxShadow: "0 20px 50px rgba(0,0,0,0.6)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "18px" }}>🛡️</span>
@@ -2625,7 +2277,7 @@ export default function App() {
             </div>
 
             <p style={{ fontSize: "12px", color: "#7f91a8", marginBottom: "16px" }}>
-              Logging in as <strong style={{ color: "#38bdf8" }}>{pendingLoginRole === "ndrf" ? "NDRF Response Unit" : "District Disaster Management Officer"}</strong>. Use any demo ID/PIN to continue (prototype auth).
+              Logging in as <strong style={{ color: "#38bdf8" }}>{pendingLoginRole === "ndrf" ? "NDRF Response Unit" : "District Disaster Management Officer"}</strong>. Use any demo ID/PIN to continue.
             </p>
 
             {loginError && (
@@ -2658,19 +2310,8 @@ export default function App() {
               </div>
 
               <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                <button
-                  type="button"
-                  onClick={() => { setShowAuthModal(false); setLoginError(""); if (!userRole) setShowRoleGate(true); }}
-                  style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.06)", border: "none", color: "#e2e8f0", cursor: "pointer" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "#38bdf8", border: "none", color: "#0b111e", fontWeight: "bold", cursor: "pointer" }}
-                >
-                  Authenticate
-                </button>
+                <button type="button" onClick={() => { setShowAuthModal(false); setLoginError(""); if (!userRole) setShowRoleGate(true); }} style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "rgba(255,255,255,0.06)", border: "none", color: "#e2e8f0", cursor: "pointer" }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, padding: "10px", borderRadius: "6px", background: "#38bdf8", border: "none", color: "#0b111e", fontWeight: "bold", cursor: "pointer" }}>Authenticate</button>
               </div>
             </form>
           </div>
