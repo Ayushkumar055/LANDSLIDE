@@ -862,13 +862,26 @@ export default function App() {
   }
 
   async function issueEarlyWarning() {
+    const isHindi = i18n.language === "hi";
+
+    // Dynamic Title aur Message language ke hisaab se
+    const alertTitle = isHindi
+      ? `भूस्खलन जोखिम चेतावनी - ${liveRiskLevel}`
+      : `Landslide Risk Alert - ${liveRiskLevel}`;
+
+    const alertMessage = isHindi
+      ? `🚨 आपातकालीन चेतावनी: ${selected.name}, ${selected.state} में भूस्खलन जोखिम स्तर ${liveRiskLevel} (${liveRiskScore}/100) दर्ज हुआ है। तुरंत सुरक्षित आश्रय की ओर प्रस्थान करें।`
+      : `🚨 EMERGENCY ALERT: Critical landslide risk level ${liveRiskLevel} (${liveRiskScore}/100) detected in ${selected.name}, ${selected.state}. Evacuate to safe shelter immediately.`;
+
     const alertData = {
       location: `${selected.name}, ${selected.state}`,
       level: liveRiskLevel,
       score: liveRiskScore,
       rainfall: Math.round(simulatedRainfall),
       type: liveRiskLevel.toLowerCase(),
-      title: `Landslide Risk Alert - ${liveRiskLevel}`,
+      title: alertTitle,
+      message: alertMessage,
+      language: i18n.language || "en",
     };
 
     if (typeof playEmergencySiren === "function") {
@@ -889,8 +902,8 @@ export default function App() {
     }
 
     sendLocalNotification(
-      `🚨 ${t("notificationTitle")} — ${selected.name}`,
-      t("notificationMessage", { score: liveRiskScore }),
+      isHindi ? `🚨 भूस्खलन चेतावनी — ${selected.name}` : `🚨 ${t("notificationTitle")} — ${selected.name}`,
+      isHindi ? `जोखिम स्कोर ${liveRiskScore}/100 पर पहुंच गया है।` : t("notificationMessage", { score: liveRiskScore }),
       `alert-${selected.name}`
     );
 
