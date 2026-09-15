@@ -154,7 +154,6 @@ function MapController({ location }) {
   return null;
 }
 
-// 100% Reliable Native React-Leaflet Heatmap Layer
 function HeatmapLayer({ points }) {
   const map = useMap();
 
@@ -222,10 +221,12 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Live System Clock State
+  // 1-Second Live IST Clock Tick
   const [currentTime, setCurrentTime] = useState(new Date());
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -552,7 +553,7 @@ export default function App() {
   }
 
   async function requestNotificationPermission() {
-    if (typeof Notification !== "undefined") return;
+    if (typeof Notification === "undefined") return;
     const result = await Notification.requestPermission();
     setNotifPermission(result);
     if (result === "granted") {
@@ -646,13 +647,6 @@ export default function App() {
       }
     }
   }
-
-  const handleMediaChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSosMediaFile(file);
-    setSosMediaPreview(URL.createObjectURL(file));
-  };
 
   async function handleSosSubmit(e) {
     e.preventDefault();
@@ -1179,10 +1173,11 @@ export default function App() {
             <div className="live"><span></span>LIVE MONITORING</div>
             <button className="icon-btn" onClick={() => setCurrentTab("warnings")}>🔔</button>
 
-            {/* REAL-TIME LIVE RUNNING CLOCK (IST) */}
+            {/* REAL-TIME RUNNING CLOCK LOCKED TO ASIA/KOLKATA */}
             <div className="date">
               <strong>
                 {currentTime.toLocaleDateString("en-GB", {
+                  timeZone: "Asia/Kolkata",
                   day: "2-digit",
                   month: "short",
                   year: "numeric"
@@ -1190,6 +1185,7 @@ export default function App() {
               </strong>
               <small>
                 {currentTime.toLocaleTimeString("en-IN", {
+                  timeZone: "Asia/Kolkata",
                   hour: "2-digit",
                   minute: "2-digit",
                   second: "2-digit",
@@ -1243,10 +1239,8 @@ export default function App() {
                     <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <MapController location={selected} />
 
-                    {/* DYNAMIC ZERO-FAIL HEATMAP LAYER */}
                     {mapMode === "heat" && <HeatmapLayer points={locationsList} />}
 
-                    {/* MARKERS IN NON-HEATMAP MODES */}
                     {mapMode !== "heat" &&
                       locationsList.map((location) => {
                         const markerColor = getMarkerColor(location);
@@ -1771,7 +1765,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 3: EARLY WARNINGS (MULTILINGUAL ALERT LOGS + ACCURATE IST TIME) */}
+        {/* VIEW 3: EARLY WARNINGS (MULTILINGUAL ALERT LOGS + ACCURATE IST DISPATCH TIME) */}
         {currentTab === "warnings" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div className="panel" style={{ padding: "20px" }}>
@@ -1791,7 +1785,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* DYNAMIC MULTILINGUAL ALERT CARDS WITH ACCURATE IST DISPATCH TIME */}
+              {/* DYNAMIC MULTILINGUAL ALERT CARDS WITH LIVE IST TIME */}
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {alerts.map((al) => {
                   const isHindi = i18n.language === "hi";
@@ -1800,7 +1794,6 @@ export default function App() {
                     ? (levelVal === "CRITICAL" ? "अति-संवेदनशील" : levelVal === "HIGH" ? "उच्च जोखिम" : levelVal === "MODERATE" ? "मध्यम" : "सामान्य")
                     : levelVal;
 
-                  // Parse timestamp accurately into Indian Standard Time (IST)
                   const rawDate = al.createdAt || al.timestamp || al.time;
                   const dateObj = rawDate ? new Date(rawDate) : new Date();
                   const formattedTime = !isNaN(dateObj.getTime())
